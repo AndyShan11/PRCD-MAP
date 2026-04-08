@@ -1,0 +1,12 @@
+# Core dependencies
+numpy>=1.21.0
+torch>=1.12.0
+scipy>=1.7.0
+pandas>=1.3.0
+scikit-learn>=1.0.0
+networkx>=2.6.0
+matplotlib>=3.5.0
+
+# Baselines (optional — install only if running baseline comparisons)
+# tigramite>=5.1.0        # for PCMCI+
+# lingam>=1.7.0           # for VARLiNGAM
