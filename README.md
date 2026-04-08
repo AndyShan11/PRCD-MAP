@@ -117,11 +117,11 @@ PRCD-MAP is a MAP-consistent framework with three key components:
 If you find this code useful, please cite:
 
 ```bibtex
-@article{prcdmap2025,
+@article{prcdmap2026,
   title={Safe Integration of Imperfect Domain Priors for Temporal Causal Discovery},
   author={Anonymous},
   journal={arXiv preprint},
-  year={2025},
+  year={2026},
   note={Under review}
 }
 ```
