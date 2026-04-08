@@ -6,9 +6,7 @@
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-1.12+-ee4c2c.svg)](https://pytorch.org/)
 
-Official implementation for the NeurIPS 2026 submission:
-
-> *Safe Integration of Imperfect Domain Priors for Temporal Causal Discovery*
+Paper: *Safe Integration of Imperfect Domain Priors for Temporal Causal Discovery* (under review)
 
 ## Key Idea
 
@@ -63,7 +61,7 @@ W0, Wk = run_prcd_map(
 # Wk: (K, d, d) lagged causal matrices
 ```
 
-## Reproducing Paper Results
+## Reproducing Experiments
 
 ### All experiments
 ```bash
@@ -72,14 +70,14 @@ bash scripts/run_all.sh
 
 ### Individual experiments
 ```bash
-bash scripts/run_all.sh exp1      # Synthetic benchmark (Table 1, Fig 1)
-bash scripts/run_all.sh exp2      # CausalTime + electricity (Table 2)
-bash scripts/run_all.sh exp3      # Ablation study (Table 3)
+bash scripts/run_all.sh exp1      # Synthetic benchmark
+bash scripts/run_all.sh exp2      # Real-world benchmarks
+bash scripts/run_all.sh exp3      # Ablation study
 bash scripts/run_all.sh exp4      # Scalability & hyperparameter sensitivity
-bash scripts/run_all.sh figures   # Generate all paper figures
+bash scripts/run_all.sh figures   # Generate figures
 ```
 
-**Hardware**: All experiments were run on a single NVIDIA RTX 2080 Ti (11 GB). PRCD-MAP completes d=100 in ~30 seconds.
+**Hardware**: Tested on a single NVIDIA RTX 2080 Ti (11 GB). PRCD-MAP completes d=100 in ~30 seconds.
 
 ## Project Structure
 
@@ -116,12 +114,15 @@ PRCD-MAP is a MAP-consistent framework with three key components:
 
 ## Citation
 
+If you find this code useful, please cite:
+
 ```bibtex
-@inproceedings{prcdmap2026,
+@article{prcdmap2025,
   title={Safe Integration of Imperfect Domain Priors for Temporal Causal Discovery},
   author={Anonymous},
-  booktitle={Advances in Neural Information Processing Systems},
-  year={2026}
+  journal={arXiv preprint},
+  year={2025},
+  note={Under review}
 }
 ```
 
