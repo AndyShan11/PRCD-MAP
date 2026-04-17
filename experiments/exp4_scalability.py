@@ -40,7 +40,7 @@ import torch
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 
-from exp_utils import (
+from utils import (
     set_seed, make_lag_tensors, standardize, ensure_dir,
     make_er_dag, make_lag_matrices, simulate_svar_linear,
     gen_prior, compute_all_metrics, combine_W0_Wk, compute_dual_metrics,

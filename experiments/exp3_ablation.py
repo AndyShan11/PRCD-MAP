@@ -48,7 +48,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 # ---- shared utilities from exp_utils ----
-from exp_utils import (                           # noqa: F401
+from utils import (                           # noqa: F401
     set_seed, make_lag_tensors, standardize, ensure_dir,
     make_er_dag, make_lag_matrices, simulate_svar_linear,
     gen_prior, compute_all_metrics, combine_W0_Wk,
@@ -133,7 +133,7 @@ def _make_model_and_train(X, P_prior, d, K, seed, max_iter, inner_iter,
     )
     # Score calibration (row-wise normalization for AUROC)
     if score_calibration:
-        from exp_utils import _calibrate_scores
+        from utils import _calibrate_scores
         W0 = _calibrate_scores(W0)
         Wk = [_calibrate_scores(wk) for wk in Wk]
     return W0, Wk, float(tau)

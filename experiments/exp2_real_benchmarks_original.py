@@ -38,7 +38,7 @@ import matplotlib.pyplot as plt
 
 # ---- shared utilities (baselines, metrics, data gen, plotting, etc.) ----
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from exp_utils import *
+from utils import *
 
 
 # ====================================================================
@@ -879,7 +879,7 @@ def main():
         print("\n>>> Benchmark: Sparse Synthetic SVAR")
         print("    Sparse ER graph (edge_prob=0.08, density<0.1)")
 
-        from exp_utils import make_er_dag, make_lag_matrices, simulate_svar_linear
+        from utils import make_er_dag, make_lag_matrices, simulate_svar_linear
 
         sparse_settings = [
             (20, 500, "sparse_d20_T500"),

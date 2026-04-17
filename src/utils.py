@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 
 # ---- core model ----
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from model_prcd_map import PRCD_MAP_Model, train_prcd_alm
+from model_linear import PRCD_MAP_Model, train_prcd_alm
 
 # ---- optional baselines ----
 HAS_TIGRAMITE = False
@@ -1457,7 +1457,7 @@ def run_prcd_map_nam(X, P_prior, d, K, lambda1=0.001, lambda2=0.01,
     Each edge (i->j) is modeled by a small MLP: f_{ij}(x_i).
     Returns (W0_strength, Wk_list, tau).
     """
-    from model_prcd_map_nam import PRCD_MAP_NAM, train_prcd_nam_alm
+    from model_nam import PRCD_MAP_NAM, train_prcd_nam_alm
 
     set_seed(seed)
     X_t, X_lags = make_lag_tensors(X, K)

@@ -1,131 +1,172 @@
 # PRCD-MAP
 
-**Safe Integration of Imperfect Domain Priors for Temporal Causal Discovery**
+**Learning How Much to Trust Domain Priors for Causal Structure Discovery**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-1.12+-ee4c2c.svg)](https://pytorch.org/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-Paper: *Safe Integration of Imperfect Domain Priors for Temporal Causal Discovery* (under review)
+NeurIPS 2026 submission (anonymous).
 
 ## Key Idea
 
-Temporal causal discovery methods face a brittle trade-off: purely data-driven approaches underperform in low-data regimes, while rigid prior integration amplifies errors when domain knowledge is inaccurate. **PRCD-MAP** resolves this by learning *how much to trust* an imperfect prior from data:
+Existing causal discovery methods either ignore priors or impose them globally---but real priors have **spatially varying reliability** (physical laws give high-confidence edges, LLM suggestions are speculative). PRCD-MAP is the first framework with **structure-aware trust calibration**:
 
-- **Reliable prior** &rarr; large AUROC gains over the best baseline in low-data regimes
-- **Mediocre prior** &rarr; graceful fallback to the no-prior regime (marginal degradation)
-- **Fixed-trust alternatives** &rarr; collapse under prior misspecification
+- **Reliable prior** → $+0.158$ AUROC over best baseline in low-data regimes
+- **Mediocre prior** → graceful fallback to no-prior ($\leq -0.038$)
+- **Fixed-trust alternatives** → collapse ($-0.156$)
 
-The core mechanism is **grouped temperature scaling** optimized via empirical Bayes, which automatically attenuates unreliable prior components while sharpening accurate ones.
+The core mechanism is **structure-aware trust propagation** (per-edge $\tau$ learned by aggregating neighborhood consistency), which strictly improves over per-group temperature under heterogeneous priors ($\Omega(1/G)$ gap, Theorem 6).
 
 <p align="center">
-  <img src="assets/prior_sweep.png" width="85%" alt="Asymmetric robustness: learned temperature flattens the curve at low prior accuracy, preventing degradation.">
+  <img src="assets/prior_sweep.png" width="75%" alt="Asymmetric robustness curve">
 </p>
+
+## Repository Structure
+
+```
+PRCD-MAP/
+├── src/                              # Core model implementations
+│   ├── model_linear.py                   # Linear SVAR + per-group τ (baseline)
+│   ├── model_nam.py                      # Neural Additive Model variant
+│   ├── trust_propagation.py              # Structure-aware trust (GAT + Lite)
+│   ├── model_linear_trust.py             # Linear + trust propagation
+│   ├── model_nam_trust.py                # NAM + trust propagation
+│   ├── utils.py                          # Data gen, baselines, metrics
+│   └── utils_trust.py                    # Trust-propagation wrappers
+│
+├── experiments/                      # 12 experiment scripts
+│   ├── exp1_synthetic_benchmark.py           # Synthetic SVAR (Table 1)
+│   ├── exp2_real_benchmarks_original.py      # CausalTime + electricity
+│   ├── exp3_ablation.py                      # Ablation (Table 3)
+│   ├── exp4_scalability.py                   # Scalability
+│   ├── exp5_cross_sectional.py               # Cross-sectional SEM (App K)
+│   ├── exp6_trust_validation.py              # Trust vs per-group
+│   ├── exp7_real_benchmarks_trust.py         # Trust on real data
+│   ├── exp8_scalability_trust.py             # Trust scalability
+│   ├── exp9_llm_prior_pipeline.py            # LLM prior end-to-end (App B)
+│   ├── exp10_community_mixing.py             # Designed validation (Table 7)
+│   ├── exp11_significance_test.py            # 10-seed paired test (App L)
+│   └── exp12_theory_verification.py          # Numerical theorem check
+│
+├── data_loaders/                     # Data prep + baseline runners
+│   ├── generate_llm_priors.py
+│   ├── baseline_dycast.py
+│   └── baseline_rhino.py
+│
+├── scripts/run_all.sh                # One-click reproduction
+├── assets/                           # Figures for README
+├── data/                             # Dataset directory (README.md inside)
+├── results_cache/                    # Pre-computed result caches (optional)
+├── requirements.txt
+├── LICENSE
+└── README.md
+```
 
 ## Installation
 
-```bash
-git clone https://github.com/AndyShan11/PRCD-MAP.git
-cd PRCD-MAP
-pip install -r requirements.txt
-```
+Python 3.10+ with PyTorch:
 
-**Optional baselines** (for reproducing comparison results):
 ```bash
+pip install -r requirements.txt
+# Optional baselines:
 pip install tigramite   # PCMCI+
 pip install lingam      # VARLiNGAM
+pip install anthropic   # For exp9 LLM pipeline (live API calls; not required if using cached priors)
 ```
 
 ## Quick Start
 
 ```python
-import torch
-from prcd_map import PRCD_MAP_Model, run_prcd_map
+import sys, numpy as np
+sys.path.insert(0, "src")
+from model_linear_trust import PRCD_MAP_Trust, train_prcd_trust_alm
+from utils_trust import run_prcd_trust
 
-# Your time series data: (T, d) numpy array
-X = ...  # shape (500, 20)
+# Your time series: (T, d) standardized; prior matrix P_prior in [0,1]^{d×d}
+X = np.random.randn(500, 20)
+P_prior = np.random.uniform(0, 1, (20, 20))
+np.fill_diagonal(P_prior, 0.0)
 
-# Prior probability matrix: (d, d), entries in [0, 1]
-P_prior = ...  # shape (20, 20)
-
-# Run PRCD-MAP
-W0, Wk = run_prcd_map(
-    X,
-    P_prior=P_prior,
-    max_lag=1,
-    lambda1=0.001,
-    lambda2=0.005,
-    n_groups=5,
-)
-# W0: (d, d) instantaneous causal graph (DAG)
-# Wk: (K, d, d) lagged causal matrices
+W0, Wk, tau = run_prcd_trust(
+    X, P_prior, d=20, K=1,
+    lambda1=0.001, lambda2=0.01,
+    max_iter=35, inner_iter=400, lr=8e-3, seed=0)
+# W0: (d, d) instantaneous graph; Wk: list of lag matrices; tau: mean learned trust
 ```
 
-## Reproducing Experiments
+## Reproducing Paper Results
 
-### All experiments
+### Core results (Tables 1–3)
 ```bash
-bash scripts/run_all.sh
+cd experiments/
+python exp1_synthetic_benchmark.py --sub sample_size --seeds 0 1 2     # Table 1
+python exp7_real_benchmarks_trust.py --bench causaltime --seeds 0 1 2  # Table 2
+python exp3_ablation.py --seeds 0 1 2                                  # Table 3
 ```
 
-### Individual experiments
+### Trust propagation validation (Table 7, new in NeurIPS version)
 ```bash
-bash scripts/run_all.sh exp1      # Synthetic benchmark
-bash scripts/run_all.sh exp2      # Real-world benchmarks
-bash scripts/run_all.sh exp3      # Ablation study
-bash scripts/run_all.sh exp4      # Scalability & hyperparameter sensitivity
-bash scripts/run_all.sh figures   # Generate figures
+python exp10_community_mixing.py --variant v1 --seeds 0 1 2   # BA d=20, main designed validation
+python exp10_community_mixing.py --variant v2 --seeds 0 1 2   # BA d=30, scale
+python exp10_community_mixing.py --variant v3 --seeds 0 1 2   # ER negative control
+python exp10_community_mixing.py --variant v4 --seeds 0 1 2   # Extreme heterogeneity
 ```
 
-**Hardware**: Tested on a single NVIDIA RTX 2080 Ti (11 GB). PRCD-MAP completes d=100 in ~30 seconds.
-
-## Project Structure
-
-```
-PRCD-MAP/
-├── prcd_map/                    # Core model package
-│   ├── __init__.py
-│   └── model.py                 # PRCD-MAP model & solver
-│
-├── experiments/                 # Paper experiment scripts
-│   ├── exp_utils.py             # Shared: data gen, baselines, metrics
-│   ├── exp1_synthetic.py        # Exp 1: synthetic SVAR benchmark
-│   ├── exp2_real.py             # Exp 2: CausalTime & electricity
-│   ├── exp3_ablation.py         # Exp 3: ablation study
-│   ├── exp4_scalability.py      # Exp 4: scalability & sensitivity
-│   └── generate_figures.py      # Paper figures & tables
-│
-├── data/                        # Data directory (see data/README.md)
-├── scripts/
-│   └── run_all.sh               # One-click reproduction
-├── requirements.txt
-└── LICENSE
+### Appendix experiments
+```bash
+python exp6_trust_validation.py --sub prior --seeds 0 1 2      # Table 8
+python exp6_trust_validation.py --sub nonlinear --seeds 0 1 2  # Nonlinear validation
+python exp8_scalability_trust.py --sub scale --seeds 0 1 2     # Scalability (App G)
+python exp5_cross_sectional.py                                 # Cross-sectional (App K)
+python exp11_significance_test.py --seeds 0 1 2 3 4 5 6 7 8 9  # 10-seed paired test
+python exp12_theory_verification.py                            # Numerical theorem check
 ```
 
-## Method Overview
+### LLM prior pipeline (App B)
+```bash
+# 1. Generate cached priors (uses domain templates; no API key required)
+python ../data_loaders/generate_llm_priors.py
+# 2. Run end-to-end pipeline
+python exp9_llm_prior_pipeline.py --dataset AQI --seeds 0 1 2
+```
 
-PRCD-MAP is a MAP-consistent framework with three key components:
+## Data
 
-1. **Probabilistic prior encoding**: Domain knowledge enters as $P_{\text{prior}} \in [0,1]^{d \times d}$, translated into a prior-modulated $\ell_1$ penalty (edge retention/removal) and a prior-weighted $\ell_2$ regularizer (shrinkage strength).
+- **Synthetic data**: Generated on the fly (ER/BA graphs, SVAR simulation).
+- **CausalTime**: Download from [CausalTime repo](https://github.com/chengyxs/CausalTime) (MIT license); place at `data/causaltime/{pm25,traffic,medical}/`.
+- **Electricity**: China Electricity Council (CEC) monthly sector-level consumption; subject to data-sharing policy, available upon request for review purposes.
 
-2. **Empirical Bayes temperature learning**: Per-group temperatures $\tau_g$ are optimized to maximize a Laplace-approximated marginal likelihood, turning "how much to trust the prior" from a manual hyperparameter into a learnable quantity.
+## Paper-to-Code Map
 
-3. **Three-level optimization**: Outer augmented Lagrangian (DAG constraint) &rarr; middle EB update ($\tau$) &rarr; inner Adam (structural parameters $W$).
+| Paper | Code |
+|---|---|
+| §3.2 Eq. (1)–(7) MAP objective | `src/model_linear.py` |
+| §3.2 Eq. (8) Trust propagation | `src/trust_propagation.py`, `src/model_linear_trust.py` |
+| §3.1 NAM extension (App F) | `src/model_nam.py`, `src/model_nam_trust.py` |
+| §3.3 Empirical Bayes | `train_prcd_alm` (linear) / `train_prcd_trust_alm` (trust) |
+| §4.2 Asymmetric robustness (Table 1) | `experiments/exp1_synthetic_benchmark.py` |
+| §4.3 CausalTime (Table 2) | `experiments/exp7_real_benchmarks_trust.py` |
+| §4.4 Ablation (Table 3) | `experiments/exp3_ablation.py` |
+| §4.5 Community Mixing (Table 7) | `experiments/exp10_community_mixing.py` |
+| App G Scalability | `experiments/exp8_scalability_trust.py` |
+| App L Significance test | `experiments/exp11_significance_test.py` |
+| Numerical theorem verification | `experiments/exp12_theory_verification.py` |
+
+## Hardware
+
+Tested on NVIDIA RTX 2080 Ti (11 GB). PRCD-MAP with trust propagation completes $d{=}100$ in $1.7$ s ($\sim\!6000{\times}$ faster than PCMCI+). NAM variant requires $d \leq 10$.
 
 ## Citation
 
-If you find this code useful, please cite:
-
 ```bibtex
-@article{prcdmap2026,
-  title={Safe Integration of Imperfect Domain Priors for Temporal Causal Discovery},
+@inproceedings{anon2026prcd,
+  title={Learning How Much to Trust Domain Priors for Causal Structure Discovery},
   author={Anonymous},
-  journal={arXiv preprint},
-  year={2026},
-  note={Under review}
+  booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
+  year={2026}
 }
 ```
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License. See [LICENSE](LICENSE).
