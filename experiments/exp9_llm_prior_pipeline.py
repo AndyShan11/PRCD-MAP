@@ -2,14 +2,14 @@
 =============================================================================
 Experiment 4 — LLM Prior Auto-Construction Pipeline
 =============================================================================
-自动先验构造: 输入变量名和描述 → LLM输出P_prior矩阵 → PRCD-MAP → 因果图.
+Automatic prior construction: variable names + descriptions -> LLM produces a P_prior matrix -> PRCD-MAP -> causal graph.
 
 Pipeline:
-  1. 对每个数据集 (CausalTime AQI/Traffic/Medical + 电力), 构建变量描述
-  2. 调用 Claude API (或 fallback 到 local LLM) 生成因果先验矩阵
-  3. 每个数据集生成 3 个独立先验 (不同 prompt)
-  4. 跑 PRCD-MAP(trust) 和 PRCD-MAP(per-group)
-  5. 评估鲁棒性: 3 个先验的 metric 方差
+  1. For each dataset (CausalTime AQI/Traffic/Medical + Electricity), build variable descriptions
+  2. Call the Claude API (or fall back to a local LLM) to produce the causal prior matrix
+  3. Generate 3 independent priors per dataset (different prompts)
+  4. Run PRCD-MAP(trust) and PRCD-MAP(per-group)
+  5. Assess robustness: variance of metrics across the 3 priors
 
 Usage:
   python exp4_llm_prior.py --dataset AQI --seeds 0 1 2
@@ -34,7 +34,7 @@ from utils_trust import *
 
 DATASET_DESCRIPTIONS = {
     "AQI": {
-        "domain": "Air Quality Index monitoring in Chinese cities",
+        "domain": "Air Quality Index monitoring at urban stations",
         "variables": {
             "PM2.5": "Fine particulate matter concentration (μg/m³)",
             "PM10": "Coarse particulate matter concentration (μg/m³)",
@@ -350,9 +350,9 @@ class Cfg:
     lr:             float = 1e-2
     n_priors:       int   = 3
     api_key:        str   = None
-    causaltime_dir: str   = "/home/shanxh/PRCD/data/causaltime"
-    electricity_xlsx: str = "/home/shanxh/PRCD/0227test.xlsx"
-    electricity_prior: str = "/home/shanxh/PRCD/Auto_Generated_Prior.csv"
+    causaltime_dir: str   = "./data/causaltime"
+    electricity_xlsx: str = "./data/electricity.xlsx"
+    electricity_prior: str = "./data/electricity_prior.csv"
     output_dir:     str   = "exp4_llm_prior_results"
     cache_dir:      str   = "llm_prior_cache"
 
@@ -362,22 +362,35 @@ def main():
     parser.add_argument("--dataset", type=str, default="all",
                         choices=["AQI", "Traffic", "Medical", "Electricity", "all"])
     parser.add_argument("--seeds", type=int, nargs="+", default=None)
-    parser.add_argument("--use-cached", action="store_true")
+    parser.add_argument("--use-cached", action="store_true",
+                        help="Force offline mode: use cache only, never call any LLM API.")
     parser.add_argument("--api-key", type=str, default=None)
+    parser.add_argument("--n-priors", type=int, default=3,
+                        help="Number of independent priors per dataset (style0..style{N-1}).")
+    parser.add_argument("--cache-dir", type=str, default=None,
+                        help="Override cache directory (default: llm_prior_cache).")
     args = parser.parse_args()
 
     cfg = Cfg()
     if args.seeds:
         cfg.seeds = args.seeds
+    cfg.n_priors = args.n_priors
+    if args.cache_dir:
+        cfg.cache_dir = args.cache_dir
 
-    # API key: 命令行 > 环境变量 > 不需要 (如果缓存已存在)
-    api_key = args.api_key or os.environ.get("ANTHROPIC_API_KEY")
+    # API key: --use-cached forces offline; otherwise CLI arg > env var > allowed empty only if the cache is complete
+    if args.use_cached:
+        api_key = None
+        print(">>> --use-cached set: offline mode, will NOT call any API.")
+    else:
+        api_key = args.api_key or os.environ.get("ANTHROPIC_API_KEY")
     cfg.api_key = api_key
     if api_key:
         print(f">>> API key loaded (ends with ...{api_key[-6:]})")
-    else:
+    elif not args.use_cached:
         print(">>> No API key — will use cached priors from llm_prior_cache/")
         print("    (Run generate_cached_priors.py first if cache is empty)")
+    print(f">>> n_priors={cfg.n_priors}, cache_dir={cfg.cache_dir}")
 
     ensure_dir(cfg.output_dir)
     ensure_dir(cfg.cache_dir)

@@ -2,28 +2,30 @@
 =============================================================================
 Experiment 6 — Structural-Community Heterogeneity Validation
 =============================================================================
-诊断 exp5 失败的原因: 社区按变量索引划分, TrustPropagationLite 的 row/col
-均值特征会混合两社区的边, 无法区分.
+Diagnosis of why exp5 failed: communities were split by variable index, so the
+row/col mean features of TrustPropagationLite mixed edges from both communities
+and could not distinguish them.
 
-新思路: 让社区按图结构角色划分 (hub vs peripheral), 这样 row/col 均值天然
-区分不同社区, TrustPropagationLite 的现有特征就能利用.
+New idea: split communities by structural role in the graph (hub vs peripheral),
+so the row/col means naturally separate the communities and TrustPropagationLite's
+existing features can use them.
 
-设计:
-  - BA 图 (m=2): 产生明显的 hub 结构, 少数节点有大量连接
-  - Hub 节点 (度数 top 30%): acc_high 先验 (物理定律级)
-  - Peripheral 节点 (度数 bottom 70%): acc_low 先验 (LLM 猜测级)
-  - P_prior 值范围重叠, 但 row/col 均值差异大
+Design:
+  - BA graph (m=2): produces a clear hub structure -- a few nodes with many edges
+  - Hub nodes (top 30 percent by degree): acc_high prior (physical-law level)
+  - Peripheral nodes (bottom 70 percent): acc_low prior (LLM-guess level)
+  - P_prior value ranges overlap, but the row/col means differ a lot
 
-Variants (4种, 4个GPU并行):
-  V1: BA 图 + 结构异质, d=20, linear/nonlinear
-  V2: BA 图 + 结构异质, d=30, linear/nonlinear
-  V3: ER 图 + 度数异质 (high-degree edges get high acc), d=20
-  V4: 极端异质 (acc_high=1.0, acc_low=0.0) + BA, d=20
+Variants (4 of them, 4 GPUs in parallel):
+  V1: BA graph + structural heterogeneity, d=20, linear/nonlinear
+  V2: BA graph + structural heterogeneity, d=30, linear/nonlinear
+  V3: ER graph + degree heterogeneity (high-degree edges get high acc), d=20
+  V4: Extreme heterogeneity (acc_high=1.0, acc_low=0.0) + BA, d=20
 
-Usage (单 GPU 全跑, ~2h):
+Usage (single GPU, ~2h):
   python exp6_structural_community.py --variant all --seeds 0 1 2
 
-Usage (4 GPU 并行, ~30min):
+Usage (4 GPUs in parallel, ~30min):
   CUDA_VISIBLE_DEVICES=0 python exp6_structural_community.py --variant v1 --seeds 0 1 2
   CUDA_VISIBLE_DEVICES=1 python exp6_structural_community.py --variant v2 --seeds 0 1 2
   CUDA_VISIBLE_DEVICES=2 python exp6_structural_community.py --variant v3 --seeds 0 1 2
@@ -44,11 +46,11 @@ from utils_trust import *
 def gen_structural_prior(W0_true, Wk_true, acc_hub, acc_periph,
                          hub_ratio=0.3, seed=0):
     """
-    按节点度数划分社区: hub 节点 (度 top hub_ratio) 边用高精度先验,
-    peripheral 节点边用低精度先验.
+    Split communities by node degree: hub nodes (top hub_ratio by degree) use a
+    high-accuracy prior on their edges; peripheral-node edges use a low-accuracy prior.
 
-    关键: 一条边 (i,j) 的"社区归属"由 max(degree(i), degree(j)) 决定.
-    Hub 相关的边 → 精准先验, 不涉及 hub 的边 → 噪声先验.
+    Key: an edge (i, j)'s community is determined by max(degree(i), degree(j)).
+    Edges incident to a hub -> accurate prior; edges with no hub endpoint -> noisy prior.
     """
     rng = np.random.default_rng(seed + 6666)
     d = W0_true.shape[0]
@@ -88,8 +90,8 @@ def gen_structural_prior(W0_true, Wk_true, acc_hub, acc_periph,
 
 def gen_degree_prior(W0_true, Wk_true, acc_high, acc_low, seed=0):
     """
-    按边度数(两端点度之和)划分社区.
-    度数 top 30% 的边用高精度, 其余用低精度.
+    Split communities by edge degree (sum of the two endpoints' degrees).
+    Top-30 percent edges by degree use a high-accuracy prior; the rest use a low-accuracy prior.
     """
     rng = np.random.default_rng(seed + 7777)
     d = W0_true.shape[0]

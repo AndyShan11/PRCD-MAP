@@ -1,0 +1,606 @@
+{
+  "mapping": [
+    {
+      "dataset": "AQI",
+      "merged_style": 0,
+      "source_llm": "gpt",
+      "source_style": 0,
+      "shape": [
+        12,
+        12
+      ],
+      "non_default_edges": 22,
+      "strong_edges": 10,
+      "src_path": "./llm_prior_cache_gpt/AQI_prior_style0.npy",
+      "dst_path": "./experiments/llm_prior_cache/AQI_prior_style0.npy"
+    },
+    {
+      "dataset": "AQI",
+      "merged_style": 1,
+      "source_llm": "claude",
+      "source_style": 1,
+      "shape": [
+        12,
+        12
+      ],
+      "non_default_edges": 29,
+      "strong_edges": 1,
+      "src_path": "./llm_prior_cache_claude/AQI_prior_style1.npy",
+      "dst_path": "./experiments/llm_prior_cache/AQI_prior_style1.npy"
+    },
+    {
+      "dataset": "AQI",
+      "merged_style": 2,
+      "source_llm": "gemini",
+      "source_style": 2,
+      "shape": [
+        12,
+        12
+      ],
+      "non_default_edges": 20,
+      "strong_edges": 5,
+      "src_path": "./llm_prior_cache_gemini/AQI_prior_style2.npy",
+      "dst_path": "./experiments/llm_prior_cache/AQI_prior_style2.npy"
+    },
+    {
+      "dataset": "AQI",
+      "merged_style": 3,
+      "source_llm": "gpt",
+      "source_style": 3,
+      "shape": [
+        12,
+        12
+      ],
+      "non_default_edges": 41,
+      "strong_edges": 5,
+      "src_path": "./llm_prior_cache_gpt/AQI_prior_style3.npy",
+      "dst_path": "./experiments/llm_prior_cache/AQI_prior_style3.npy"
+    },
+    {
+      "dataset": "AQI",
+      "merged_style": 4,
+      "source_llm": "claude",
+      "source_style": 4,
+      "shape": [
+        12,
+        12
+      ],
+      "non_default_edges": 26,
+      "strong_edges": 2,
+      "src_path": "./llm_prior_cache_claude/AQI_prior_style4.npy",
+      "dst_path": "./experiments/llm_prior_cache/AQI_prior_style4.npy"
+    },
+    {
+      "dataset": "Traffic",
+      "merged_style": 0,
+      "source_llm": "gpt",
+      "source_style": 0,
+      "shape": [
+        12,
+        12
+      ],
+      "non_default_edges": 26,
+      "strong_edges": 14,
+      "src_path": "./llm_prior_cache_gpt/Traffic_prior_style0.npy",
+      "dst_path": "./experiments/llm_prior_cache/Traffic_prior_style0.npy"
+    },
+    {
+      "dataset": "Traffic",
+      "merged_style": 1,
+      "source_llm": "claude",
+      "source_style": 1,
+      "shape": [
+        12,
+        12
+      ],
+      "non_default_edges": 34,
+      "strong_edges": 0,
+      "src_path": "./llm_prior_cache_claude/Traffic_prior_style1.npy",
+      "dst_path": "./experiments/llm_prior_cache/Traffic_prior_style1.npy"
+    },
+    {
+      "dataset": "Traffic",
+      "merged_style": 2,
+      "source_llm": "gemini",
+      "source_style": 2,
+      "shape": [
+        12,
+        12
+      ],
+      "non_default_edges": 32,
+      "strong_edges": 11,
+      "src_path": "./llm_prior_cache_gemini/Traffic_prior_style2.npy",
+      "dst_path": "./experiments/llm_prior_cache/Traffic_prior_style2.npy"
+    },
+    {
+      "dataset": "Traffic",
+      "merged_style": 3,
+      "source_llm": "gpt",
+      "source_style": 3,
+      "shape": [
+        12,
+        12
+      ],
+      "non_default_edges": 48,
+      "strong_edges": 11,
+      "src_path": "./llm_prior_cache_gpt/Traffic_prior_style3.npy",
+      "dst_path": "./experiments/llm_prior_cache/Traffic_prior_style3.npy"
+    },
+    {
+      "dataset": "Traffic",
+      "merged_style": 4,
+      "source_llm": "claude",
+      "source_style": 4,
+      "shape": [
+        12,
+        12
+      ],
+      "non_default_edges": 34,
+      "strong_edges": 0,
+      "src_path": "./llm_prior_cache_claude/Traffic_prior_style4.npy",
+      "dst_path": "./experiments/llm_prior_cache/Traffic_prior_style4.npy"
+    },
+    {
+      "dataset": "Medical",
+      "merged_style": 0,
+      "source_llm": "gpt",
+      "source_style": 0,
+      "shape": [
+        6,
+        6
+      ],
+      "non_default_edges": 13,
+      "strong_edges": 6,
+      "src_path": "./llm_prior_cache_gpt/Medical_prior_style0.npy",
+      "dst_path": "./experiments/llm_prior_cache/Medical_prior_style0.npy"
+    },
+    {
+      "dataset": "Medical",
+      "merged_style": 1,
+      "source_llm": "claude",
+      "source_style": 1,
+      "shape": [
+        6,
+        6
+      ],
+      "non_default_edges": 15,
+      "strong_edges": 2,
+      "src_path": "./llm_prior_cache_claude/Medical_prior_style1.npy",
+      "dst_path": "./experiments/llm_prior_cache/Medical_prior_style1.npy"
+    },
+    {
+      "dataset": "Medical",
+      "merged_style": 2,
+      "source_llm": "gemini",
+      "source_style": 2,
+      "shape": [
+        6,
+        6
+      ],
+      "non_default_edges": 12,
+      "strong_edges": 4,
+      "src_path": "./llm_prior_cache_gemini/Medical_prior_style2.npy",
+      "dst_path": "./experiments/llm_prior_cache/Medical_prior_style2.npy"
+    },
+    {
+      "dataset": "Medical",
+      "merged_style": 3,
+      "source_llm": "gpt",
+      "source_style": 3,
+      "shape": [
+        6,
+        6
+      ],
+      "non_default_edges": 24,
+      "strong_edges": 1,
+      "src_path": "./llm_prior_cache_gpt/Medical_prior_style3.npy",
+      "dst_path": "./experiments/llm_prior_cache/Medical_prior_style3.npy"
+    },
+    {
+      "dataset": "Medical",
+      "merged_style": 4,
+      "source_llm": "claude",
+      "source_style": 4,
+      "shape": [
+        6,
+        6
+      ],
+      "non_default_edges": 14,
+      "strong_edges": 1,
+      "src_path": "./llm_prior_cache_claude/Medical_prior_style4.npy",
+      "dst_path": "./experiments/llm_prior_cache/Medical_prior_style4.npy"
+    },
+    {
+      "dataset": "Electricity",
+      "merged_style": 0,
+      "source_llm": "gpt",
+      "source_style": 0,
+      "shape": [
+        8,
+        8
+      ],
+      "non_default_edges": 16,
+      "strong_edges": 7,
+      "src_path": "./llm_prior_cache_gpt/Electricity_prior_style0.npy",
+      "dst_path": "./experiments/llm_prior_cache/Electricity_prior_style0.npy"
+    },
+    {
+      "dataset": "Electricity",
+      "merged_style": 1,
+      "source_llm": "claude",
+      "source_style": 1,
+      "shape": [
+        8,
+        8
+      ],
+      "non_default_edges": 13,
+      "strong_edges": 0,
+      "src_path": "./llm_prior_cache_claude/Electricity_prior_style1.npy",
+      "dst_path": "./experiments/llm_prior_cache/Electricity_prior_style1.npy"
+    },
+    {
+      "dataset": "Electricity",
+      "merged_style": 2,
+      "source_llm": "gemini",
+      "source_style": 2,
+      "shape": [
+        8,
+        8
+      ],
+      "non_default_edges": 13,
+      "strong_edges": 4,
+      "src_path": "./llm_prior_cache_gemini/Electricity_prior_style2.npy",
+      "dst_path": "./experiments/llm_prior_cache/Electricity_prior_style2.npy"
+    },
+    {
+      "dataset": "Electricity",
+      "merged_style": 3,
+      "source_llm": "gpt",
+      "source_style": 3,
+      "shape": [
+        8,
+        8
+      ],
+      "non_default_edges": 22,
+      "strong_edges": 0,
+      "src_path": "./llm_prior_cache_gpt/Electricity_prior_style3.npy",
+      "dst_path": "./experiments/llm_prior_cache/Electricity_prior_style3.npy"
+    },
+    {
+      "dataset": "Electricity",
+      "merged_style": 4,
+      "source_llm": "claude",
+      "source_style": 4,
+      "shape": [
+        8,
+        8
+      ],
+      "non_default_edges": 12,
+      "strong_edges": 0,
+      "src_path": "./llm_prior_cache_claude/Electricity_prior_style4.npy",
+      "dst_path": "./experiments/llm_prior_cache/Electricity_prior_style4.npy"
+    }
+  ],
+  "validation": [
+    {
+      "dataset": "AQI",
+      "pair": [
+        0,
+        1
+      ],
+      "mean_abs_diff": 0.016180555555555556
+    },
+    {
+      "dataset": "AQI",
+      "pair": [
+        0,
+        2
+      ],
+      "mean_abs_diff": 0.024513888888888887
+    },
+    {
+      "dataset": "AQI",
+      "pair": [
+        0,
+        3
+      ],
+      "mean_abs_diff": 0.02041666666666667
+    },
+    {
+      "dataset": "AQI",
+      "pair": [
+        0,
+        4
+      ],
+      "mean_abs_diff": 0.023055555555555555
+    },
+    {
+      "dataset": "AQI",
+      "pair": [
+        1,
+        2
+      ],
+      "mean_abs_diff": 0.027916666666666663
+    },
+    {
+      "dataset": "AQI",
+      "pair": [
+        1,
+        3
+      ],
+      "mean_abs_diff": 0.020208333333333335
+    },
+    {
+      "dataset": "AQI",
+      "pair": [
+        1,
+        4
+      ],
+      "mean_abs_diff": 0.025069444444444443
+    },
+    {
+      "dataset": "AQI",
+      "pair": [
+        2,
+        3
+      ],
+      "mean_abs_diff": 0.038263888888888896
+    },
+    {
+      "dataset": "AQI",
+      "pair": [
+        2,
+        4
+      ],
+      "mean_abs_diff": 0.03340277777777778
+    },
+    {
+      "dataset": "AQI",
+      "pair": [
+        3,
+        4
+      ],
+      "mean_abs_diff": 0.03319444444444444
+    },
+    {
+      "dataset": "Traffic",
+      "pair": [
+        0,
+        1
+      ],
+      "mean_abs_diff": 0.017638888888888885
+    },
+    {
+      "dataset": "Traffic",
+      "pair": [
+        0,
+        2
+      ],
+      "mean_abs_diff": 0.013125
+    },
+    {
+      "dataset": "Traffic",
+      "pair": [
+        0,
+        3
+      ],
+      "mean_abs_diff": 0.022361111111111102
+    },
+    {
+      "dataset": "Traffic",
+      "pair": [
+        0,
+        4
+      ],
+      "mean_abs_diff": 0.039999999999999994
+    },
+    {
+      "dataset": "Traffic",
+      "pair": [
+        1,
+        2
+      ],
+      "mean_abs_diff": 0.025763888888888888
+    },
+    {
+      "dataset": "Traffic",
+      "pair": [
+        1,
+        3
+      ],
+      "mean_abs_diff": 0.013333333333333336
+    },
+    {
+      "dataset": "Traffic",
+      "pair": [
+        1,
+        4
+      ],
+      "mean_abs_diff": 0.024027777777777773
+    },
+    {
+      "dataset": "Traffic",
+      "pair": [
+        2,
+        3
+      ],
+      "mean_abs_diff": 0.02201388888888889
+    },
+    {
+      "dataset": "Traffic",
+      "pair": [
+        2,
+        4
+      ],
+      "mean_abs_diff": 0.047569444444444435
+    },
+    {
+      "dataset": "Traffic",
+      "pair": [
+        3,
+        4
+      ],
+      "mean_abs_diff": 0.03708333333333333
+    },
+    {
+      "dataset": "Medical",
+      "pair": [
+        0,
+        1
+      ],
+      "mean_abs_diff": 0.03083333333333333
+    },
+    {
+      "dataset": "Medical",
+      "pair": [
+        0,
+        2
+      ],
+      "mean_abs_diff": 0.021388888888888888
+    },
+    {
+      "dataset": "Medical",
+      "pair": [
+        0,
+        3
+      ],
+      "mean_abs_diff": 0.04583333333333333
+    },
+    {
+      "dataset": "Medical",
+      "pair": [
+        0,
+        4
+      ],
+      "mean_abs_diff": 0.07250000000000001
+    },
+    {
+      "dataset": "Medical",
+      "pair": [
+        1,
+        2
+      ],
+      "mean_abs_diff": 0.03833333333333333
+    },
+    {
+      "dataset": "Medical",
+      "pair": [
+        1,
+        3
+      ],
+      "mean_abs_diff": 0.04055555555555555
+    },
+    {
+      "dataset": "Medical",
+      "pair": [
+        1,
+        4
+      ],
+      "mean_abs_diff": 0.05277777777777778
+    },
+    {
+      "dataset": "Medical",
+      "pair": [
+        2,
+        3
+      ],
+      "mean_abs_diff": 0.05722222222222222
+    },
+    {
+      "dataset": "Medical",
+      "pair": [
+        2,
+        4
+      ],
+      "mean_abs_diff": 0.06888888888888889
+    },
+    {
+      "dataset": "Medical",
+      "pair": [
+        3,
+        4
+      ],
+      "mean_abs_diff": 0.07277777777777777
+    },
+    {
+      "dataset": "Electricity",
+      "pair": [
+        0,
+        1
+      ],
+      "mean_abs_diff": 0.025937499999999995
+    },
+    {
+      "dataset": "Electricity",
+      "pair": [
+        0,
+        2
+      ],
+      "mean_abs_diff": 0.0334375
+    },
+    {
+      "dataset": "Electricity",
+      "pair": [
+        0,
+        3
+      ],
+      "mean_abs_diff": 0.02671875
+    },
+    {
+      "dataset": "Electricity",
+      "pair": [
+        0,
+        4
+      ],
+      "mean_abs_diff": 0.037343749999999995
+    },
+    {
+      "dataset": "Electricity",
+      "pair": [
+        1,
+        2
+      ],
+      "mean_abs_diff": 0.0225
+    },
+    {
+      "dataset": "Electricity",
+      "pair": [
+        1,
+        3
+      ],
+      "mean_abs_diff": 0.027031250000000007
+    },
+    {
+      "dataset": "Electricity",
+      "pair": [
+        1,
+        4
+      ],
+      "mean_abs_diff": 0.031093750000000007
+    },
+    {
+      "dataset": "Electricity",
+      "pair": [
+        2,
+        3
+      ],
+      "mean_abs_diff": 0.041718750000000006
+    },
+    {
+      "dataset": "Electricity",
+      "pair": [
+        2,
+        4
+      ],
+      "mean_abs_diff": 0.03640625
+    },
+    {
+      "dataset": "Electricity",
+      "pair": [
+        3,
+        4
+      ],
+      "mean_abs_diff": 0.043437500000000004
+    }
+  ]
+}

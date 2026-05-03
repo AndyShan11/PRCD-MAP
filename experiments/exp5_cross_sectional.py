@@ -29,7 +29,7 @@ from utils import (
     binarize_prior_to_mask, compute_all_metrics,
     print_rhino_table, ensure_dir, fmt_time, save_fig,
 )
-from model_prcd_map import PRCD_MAP_Model, train_prcd_alm
+from model_linear import PRCD_MAP_Model, train_prcd_alm
 
 import matplotlib
 matplotlib.use("Agg")

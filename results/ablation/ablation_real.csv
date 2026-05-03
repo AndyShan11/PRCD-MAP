@@ -1,0 +1,61 @@
+data,variant,variant_name,seed,target,top_m,n_features,tau,rmse,mae
+electricity,C,FullModel,0,Large Ind.,6,6,1.11483895778656,17018715.86346843,12666644.0
+electricity,F,HardMask,0,Large Ind.,6,6,,17838713.4344479,12848011.0
+electricity,A,NoPrior,0,Large Ind.,6,6,1.0,16922553.48599614,11930229.0
+electricity,ALL,AllFeatures,0,Large Ind.,36,36,,18283842.968640044,13289461.0
+electricity,C,FullModel,0,Residential,6,6,1.11483895778656,12431122.470218368,9065278.0
+electricity,F,HardMask,0,Residential,6,6,,12960811.971166622,9113004.0
+electricity,A,NoPrior,0,Residential,6,6,1.0,11873131.234255604,8310893.5
+electricity,ALL,AllFeatures,0,Residential,36,36,,16041831.700030267,11259172.0
+electricity,C,FullModel,0,Commercial,6,6,1.11483895778656,4678709.676207747,3201277.25
+electricity,F,HardMask,0,Commercial,6,6,,4706075.844774285,3191430.0
+electricity,A,NoPrior,0,Commercial,6,6,1.0,4427346.628580147,3052113.25
+electricity,ALL,AllFeatures,0,Commercial,36,36,,4688959.398566808,3249921.25
+electricity,C,FullModel,1,Large Ind.,6,6,1.11483895778656,18135018.60642442,12905192.0
+electricity,F,HardMask,1,Large Ind.,6,6,,16547963.690626832,12319761.0
+electricity,A,NoPrior,1,Large Ind.,6,6,1.0,17020184.656611454,12156757.0
+electricity,ALL,AllFeatures,1,Large Ind.,36,36,,17249863.296281975,12563222.0
+electricity,C,FullModel,1,Residential,6,6,1.11483895778656,11643805.255759304,8382328.0
+electricity,F,HardMask,1,Residential,6,6,,12810451.346617885,9001736.0
+electricity,A,NoPrior,1,Residential,6,6,1.0,11632779.176632212,8290599.0
+electricity,ALL,AllFeatures,1,Residential,36,36,,16465039.132657291,11952931.0
+electricity,C,FullModel,1,Commercial,6,6,1.11483895778656,4530087.579607264,3107716.25
+electricity,F,HardMask,1,Commercial,6,6,,4803099.261835008,3225262.5
+electricity,A,NoPrior,1,Commercial,6,6,1.0,4502870.213058333,3216962.0
+electricity,ALL,AllFeatures,1,Commercial,36,36,,4652477.259783222,3203767.0
+electricity,C,FullModel,2,Large Ind.,6,6,1.11483895778656,18052716.552270133,12798649.0
+electricity,F,HardMask,2,Large Ind.,6,6,,17384897.686826922,12472044.0
+electricity,A,NoPrior,2,Large Ind.,6,6,1.0,18143421.44883594,12579628.0
+electricity,ALL,AllFeatures,2,Large Ind.,36,36,,18429168.081116628,13797987.0
+electricity,C,FullModel,2,Residential,6,6,1.11483895778656,12294454.283607386,8907870.0
+electricity,F,HardMask,2,Residential,6,6,,13085743.718200812,9304751.0
+electricity,A,NoPrior,2,Residential,6,6,1.0,11633441.50478198,8191166.5
+electricity,ALL,AllFeatures,2,Residential,36,36,,16630731.510538435,11704188.0
+electricity,C,FullModel,2,Commercial,6,6,1.11483895778656,5016143.827883726,3339059.75
+electricity,F,HardMask,2,Commercial,6,6,,4959595.344938536,3370276.0
+electricity,A,NoPrior,2,Commercial,6,6,1.0,4450473.171197867,3133815.5
+electricity,ALL,AllFeatures,2,Commercial,36,36,,4604627.530335109,3224403.0
+electricity,C,FullModel,3,Large Ind.,6,6,1.11483895778656,17842931.995003063,12580410.0
+electricity,F,HardMask,3,Large Ind.,6,6,,16496418.163623277,12097476.0
+electricity,A,NoPrior,3,Large Ind.,6,6,1.0,16687253.803942217,11924339.0
+electricity,ALL,AllFeatures,3,Large Ind.,36,36,,18002150.6606383,13112254.0
+electricity,C,FullModel,3,Residential,6,6,1.11483895778656,12684600.437259661,8989945.0
+electricity,F,HardMask,3,Residential,6,6,,12677686.413194483,9199604.0
+electricity,A,NoPrior,3,Residential,6,6,1.0,11981096.168647008,8484864.0
+electricity,ALL,AllFeatures,3,Residential,36,36,,15316591.513416555,11065029.0
+electricity,C,FullModel,3,Commercial,6,6,1.11483895778656,4828203.327059042,3296631.5
+electricity,F,HardMask,3,Commercial,6,6,,4599706.100385111,3145771.5
+electricity,A,NoPrior,3,Commercial,6,6,1.0,4334264.805983133,3072093.75
+electricity,ALL,AllFeatures,3,Commercial,36,36,,4831314.474921292,3346917.5
+electricity,C,FullModel,4,Large Ind.,6,6,1.11483895778656,16642358.498703241,12243146.0
+electricity,F,HardMask,4,Large Ind.,6,6,,16556949.065150378,12101711.0
+electricity,A,NoPrior,4,Large Ind.,6,6,1.0,17922261.317436926,12359108.0
+electricity,ALL,AllFeatures,4,Large Ind.,36,36,,18790515.959969167,13677787.0
+electricity,C,FullModel,4,Residential,6,6,1.11483895778656,12752109.105641153,8882833.0
+electricity,F,HardMask,4,Residential,6,6,,12373786.86050669,8867490.0
+electricity,A,NoPrior,4,Residential,6,6,1.0,11525889.270817067,8264504.5
+electricity,ALL,AllFeatures,4,Residential,36,36,,15977790.39303345,11291275.0
+electricity,C,FullModel,4,Commercial,6,6,1.11483895778656,4719231.956603108,3232636.5
+electricity,F,HardMask,4,Commercial,6,6,,4766654.775923258,3282472.25
+electricity,A,NoPrior,4,Commercial,6,6,1.0,4512185.325669149,3150061.25
+electricity,ALL,AllFeatures,4,Commercial,36,36,,4610854.255573906,3282151.75

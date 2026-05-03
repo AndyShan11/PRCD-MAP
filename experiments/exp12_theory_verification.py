@@ -1,12 +1,12 @@
 """
 theory_trust_propagation.py — Formal Definitions and Theoretical Analysis.
 
-Structure-Aware Trust Propagation: 形式化定义, 收敛性分析, ε-safety bound.
-本文件包含:
+Structure-Aware Trust Propagation: formal definitions, convergence analysis, epsilon-safety bound.
+This file contains:
   1. Definition: Structure-Aware Trust Propagation
   2. Theorem: Convergence under Accurate Prior
-  3. Proposition: Tighter ε-safety Bound via Neighborhood Consistency
-  4. 数值验证函数 (empirical verification of theoretical bounds)
+  3. Proposition: Tighter epsilon-safety Bound via Neighborhood Consistency
+  4. Numerical-verification helpers (empirical verification of theoretical bounds)
 """
 
 import numpy as np

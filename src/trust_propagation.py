@@ -1,16 +1,17 @@
 """
 model_trust_propagation.py — Structure-Aware Trust Propagation Module.
 
-核心思想: 将 per-group 标量温度 τ 升级为结构感知的信任传播.
-如果一条边的邻域边都被数据确认为可信, 该边的先验信任度应被提升 (局部一致性).
+Key idea: upgrade the per-group scalar temperature tau to structure-aware trust propagation.
+If an edge's neighbors are confirmed trustworthy by the data, the edge's prior trust should
+be raised (local consistency).
 
-实现: 在先验图上用轻量 GAT (1-2层) 做 message passing:
-  τ_ij = MLP(aggregate({P_prior_kl, |W_kl|} for (k,l) in neighborhood of (i,j)))
+Implementation: a lightweight GAT (1-2 layers) does message passing on the prior graph:
+  tau_ij = MLP(aggregate({P_prior_kl, |W_kl|} for (k,l) in neighborhood of (i,j)))
 
-理论性质:
-  - 信任传播在准确先验下收敛到更紧的 ε-safety bound
-  - 邻域一致性提供额外信号, 减少对单条边信任度估计的方差
-  - 兼容原有 EB 框架: 可视为 τ 参数化的结构化扩展
+Theoretical properties:
+  - Trust propagation converges to a tighter epsilon-safety bound under an accurate prior
+  - Neighborhood consistency provides an additional signal, reducing variance of per-edge trust
+  - Compatible with the existing EB framework: a structured extension of the tau parametrization
 """
 
 import math
@@ -22,18 +23,18 @@ import torch.nn.functional as F
 
 class EdgeFeatureExtractor(nn.Module):
     """
-    提取边特征: 将 (P_prior_ij, |W_ij|, group_idx) 编码为边嵌入.
+    Edge feature extractor: encodes (P_prior_ij, |W_ij|, group_idx) into an edge embedding.
     """
 
     def __init__(self, feat_dim: int = 16):
         super().__init__()
-        # 输入: [P_prior_ij, |W_ij|_normalized, tau_group_embed]
+        # Input: [P_prior_ij, |W_ij|_normalized, tau_group_embed]
         self.proj = nn.Sequential(
             nn.Linear(3, feat_dim),
             nn.ReLU(),
             nn.Linear(feat_dim, feat_dim),
         )
-        # Group embedding (最多8组)
+        # Group embedding (up to 8 groups)
         self.group_embed = nn.Embedding(8, 1)
         nn.init.zeros_(self.group_embed.weight)
 
@@ -44,7 +45,7 @@ class EdgeFeatureExtractor(nn.Module):
         Returns: edge_features (d, d, feat_dim)
         """
         d = P_prior.shape[0]
-        # 归一化 W_strength
+        # Normalize W_strength
         w_max = W_strength.max().clamp(min=1e-6)
         W_norm = (W_strength / w_max) * off_diag_mask
 
@@ -61,10 +62,10 @@ class EdgeGATLayer(nn.Module):
     """
     Edge-level Graph Attention on the prior graph.
 
-    "节点" = 边 (i,j), "邻居" = 共享端点的边.
-    即 N(i,j) = {(k,j) : k≠i} ∪ {(i,l) : l≠j}  (入边 + 出边的邻居).
+    "Nodes" = edges (i, j); "neighbors" = edges sharing an endpoint.
+    That is, N(i, j) = {(k, j) : k != i} U {(i, l) : l != j}  (in-edge and out-edge neighbors).
 
-    注意力权重:
+    Attention weights:
       α_{(i,j),(k,l)} = softmax( LeakyReLU( a^T [h_ij || h_kl] ) )
     """
 
@@ -96,10 +97,10 @@ class EdgeGATLayer(nn.Module):
 
     def forward(self, edge_feat: torch.Tensor, off_diag_mask: torch.Tensor):
         """
-        edge_feat: (d, d, in_dim) — 边特征
-        off_diag_mask: (d, d) — 非对角 mask
+        edge_feat: (d, d, in_dim) -- edge features
+        off_diag_mask: (d, d) -- off-diagonal mask
 
-        Returns: (d, d, out_dim) — 更新后的边特征
+        Returns: (d, d, out_dim) -- updated edge features
         """
         d = edge_feat.shape[0]
         dev = edge_feat.device
@@ -111,10 +112,10 @@ class EdgeGATLayer(nn.Module):
         K = self.W_k(flat_feat).view(d, d, self.n_heads, self.head_dim)
         V = self.W_v(flat_feat).view(d, d, self.n_heads, self.head_dim)
 
-        # 构建邻域: edge (i,j) 的邻居是 {(k,j): k≠i, k≠j} ∪ {(i,l): l≠j, l≠i}
-        # 高效实现: 对每条边 (i,j), 聚合同一列(入边)和同一行(出边)的边特征
-        # 列聚合: 对列 j, 所有 (k,j) k≠j 贡献给 (i,j)
-        # 行聚合: 对行 i, 所有 (i,l) l≠i 贡献给 (i,j)
+        # Build neighborhoods: neighbors of edge (i, j) are {(k, j): k != i, k != j} U {(i, l): l != j, l != i}
+        # Efficient implementation: for each (i, j), aggregate features of the same column (in-edges) and the same row (out-edges)
+        # Column aggregation: for column j, all (k, j) with k != j contribute to (i, j)
+        # Row aggregation: for row i, all (i, l) with l != i contribute to (i, j)
 
         # Column attention: Q[i,j] attends to K[k,j] for all k
         # shape: Q[:, :, h, :] is (d, d, head_dim)
@@ -141,7 +142,7 @@ class EdgeGATLayer(nn.Module):
         out_col = out_col.permute(1, 0, 2, 3)  # back to (d, d, n_heads, head_dim)
 
         # Row attention: for edge (i,j), attend to (i,l) for all l
-        Q_row = Q  # (d, d, n_heads, head_dim) — row i, col j
+        Q_row = Q  # (d, d, n_heads, head_dim) -- row i, col j
         K_row = K
         V_row = V
         attn_row = torch.einsum('rqhd,rkhd->rqkh', Q_row, K_row) / self.attn_scale
@@ -171,17 +172,17 @@ class TrustPropagationModule(nn.Module):
     """
     Structure-Aware Trust Propagation.
 
-    输入: P_prior (d,d), W_strength (d,d), group_indices (d,d)
-    输出: tau_matrix (d,d) — per-edge 信任度
+    Inputs: P_prior (d, d), W_strength (d, d), group_indices (d, d)
+    Output: tau_matrix (d, d) -- per-edge trust
 
-    架构:
-      1. EdgeFeatureExtractor: 提取边特征
-      2. 1-2层 EdgeGATLayer: 结构感知聚合
-      3. τ prediction head: MLP → sigmoid → [tau_min, tau_max]
+    Architecture:
+      1. EdgeFeatureExtractor: extracts edge features
+      2. 1-2 EdgeGATLayer: structure-aware aggregation
+      3. tau prediction head: MLP -> sigmoid -> [tau_min, tau_max]
 
-    与原有代码的接口:
-      - 替代 _expand_tau() 返回的 (d,d) tau_matrix
-      - calibrated_prior(tau_matrix) 等下游函数不变
+    Interface with the existing code:
+      - Replaces the (d, d) tau_matrix returned by _expand_tau()
+      - Downstream calls such as calibrated_prior(tau_matrix) are unchanged
     """
 
     def __init__(self, feat_dim: int = 16, n_layers: int = 2,
@@ -209,21 +210,21 @@ class TrustPropagationModule(nn.Module):
             nn.Linear(feat_dim // 2, 1),
         )
 
-        # Global bias (类似原来的 tau_groups, 提供全局基线)
+        # Global bias (analogous to the old tau_groups; provides a global baseline)
         self.tau_bias = nn.Parameter(torch.tensor(0.0))
 
         self._init_tau_head()
 
     def _init_tau_head(self):
-        """初始化使 τ 初始输出在 tau_min 附近 (保守策略)."""
-        # 让初始输出接近 0 (sigmoid(0)=0.5), 配合 tau_bias 控制起点
+        """Initialize so the initial tau output is near tau_min (conservative)."""
+        # Make the initial output near 0 (sigmoid(0)=0.5); tau_bias then controls the starting point
         for m in self.tau_head:
             if isinstance(m, nn.Linear):
                 nn.init.zeros_(m.weight)
                 nn.init.zeros_(m.bias)
-        # tau_bias 初始化使 sigmoid(bias) 对应 tau_min
+        # Init tau_bias so that sigmoid(bias) corresponds to tau_min
         # sigmoid(x) * (tau_max - tau_min) + tau_min
-        # 要 output ≈ tau_min, 需 sigmoid(x) ≈ 0, 即 x << 0
+        # To get output ~ tau_min we need sigmoid(x) ~ 0, i.e. x << 0
         self.tau_bias.data.fill_(-3.0)
 
     def forward(self, P_prior: torch.Tensor, W_strength: torch.Tensor,
@@ -249,7 +250,7 @@ class TrustPropagationModule(nn.Module):
         return tau_matrix
 
     def get_tau_mean(self, P_prior, W_strength, group_indices, off_diag_mask):
-        """返回 τ 均值 (兼容日志接口)."""
+        """Return mean tau (compatible with the logging interface)."""
         with torch.no_grad():
             tau_mat = self.forward(P_prior, W_strength, group_indices, off_diag_mask)
             mask = off_diag_mask.bool()
@@ -258,13 +259,13 @@ class TrustPropagationModule(nn.Module):
 
 class TrustPropagationLite(nn.Module):
     """
-    轻量版信任传播 (无 GAT, 仅局部统计量).
-    用于 d>50 时替代完整 GAT 以节省显存.
+    Lightweight trust propagation (no GAT, only local statistics).
+    Used in place of the full GAT when d > 50 to save GPU memory.
 
     τ_ij = MLP( P_prior_ij, mean(P_prior_Nij), std(P_prior_Nij),
                 |W_ij|_norm, mean(|W_Nij|), agreement_ij )
 
-    其中 N(i,j) = 行i邻域 ∪ 列j邻域.
+    where N(i, j) = (row-i neighborhood) U (column-j neighborhood).
     """
 
     def __init__(self, tau_min: float = 0.05, tau_max: float = 3.0,

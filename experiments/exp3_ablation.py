@@ -403,8 +403,8 @@ class Cfg:
     lorenz_T:  int   = 2000
     lorenz_F:  float = 10.0
 
-    electricity_xlsx:  str = "/home/shanxh/PRCD/0227test.xlsx"
-    electricity_prior: str = "/home/shanxh/PRCD/Auto_Generated_Prior.csv"
+    electricity_xlsx:  str = "./data/electricity.xlsx"
+    electricity_prior: str = "./data/electricity_prior.csv"
     elec_targets: List[str] = field(default_factory=lambda: [
         "\u5927\u5de5\u4e1a\u7535\u91cf", "\u5c45\u6c11\u751f\u6d3b",
         "\u5546\u4e1a\u7528\u7535"])

@@ -229,7 +229,7 @@ def run_single_setting(
             warnings.warn(f"PRCD-MAP(per-group) failed: {e}")
 
     # NAM + Trust
-    if do_nam_trust and d <= 10:  # NAM仅d<=10, d>=20的380+MLPs太慢
+    if do_nam_trust and d <= 10:  # NAM only for d<=10; the 380+ MLPs at d>=20 are too slow
         try:
             W0, Wk, tau = run_prcd_nam_trust(
                 X, P_prior, d, K, lambda1=lambda1, lambda2=lambda2,

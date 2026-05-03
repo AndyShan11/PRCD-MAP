@@ -271,8 +271,8 @@ def run_experiment(cfg: Cfg) -> pd.DataFrame:
         except Exception as e:
             warnings.warn(f"  PRCD-MAP(learn_tau) failed: {e}")
 
-        # PRCD-MAP (fixed tau=1) — Fix 8: 保持 prior_l1_weight=True
-        # 与 learn_tau 唯一区别是 τ 是否学习, 保证消融实验单变量
+        # PRCD-MAP (fixed tau=1) -- Fix 8: keep prior_l1_weight=True
+        # Differs from learn_tau only in whether tau is learned -- single-variable ablation
         try:
             t0 = time.time()
             W0_est, Wk_est, tau = run_prcd_map(
@@ -286,7 +286,7 @@ def run_experiment(cfg: Cfg) -> pd.DataFrame:
         except Exception as e:
             warnings.warn(f"  PRCD-MAP(fixed_tau) failed: {e}")
 
-        # PRCD-MAP (no prior_l1) — Fix 8: 单独消融 prior_l1_weight
+        # PRCD-MAP (no prior_l1) -- Fix 8: ablate prior_l1_weight in isolation
         try:
             t0 = time.time()
             W0_est, Wk_est, tau = run_prcd_map(

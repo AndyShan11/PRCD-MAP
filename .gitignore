@@ -29,11 +29,11 @@ desktop.ini
 # Jupyter
 .ipynb_checkpoints/
 
-# Experiment outputs (regenerable)
-results/
+# Auto-generated experiment outputs (curated CSVs in results/ are tracked)
 outputs/
-*.csv
-!data/*.csv
+runs/
+results/runs/
+results/_tmp/
 
 # LaTeX artifacts
 *.aux

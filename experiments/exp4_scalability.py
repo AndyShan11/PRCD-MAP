@@ -87,8 +87,8 @@ class Cfg:
     conv_prior_accs:  List[float] = field(default_factory=lambda: [0.3, 0.6, 0.9])
 
     # Real data paths
-    electricity_xlsx:  str = "/home/shanxh/PRCD/0227test.xlsx"
-    electricity_prior: str = "/home/shanxh/PRCD/Auto_Generated_Prior.csv"
+    electricity_xlsx:  str = "./data/electricity.xlsx"
+    electricity_prior: str = "./data/electricity_prior.csv"
 
     # General
     seeds:            List[int]   = field(default_factory=lambda: [0, 1, 2, 3, 4])

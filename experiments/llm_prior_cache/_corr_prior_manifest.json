@@ -1,0 +1,122 @@
+{
+  "AQI": {
+    "d": 36,
+    "styles": {
+      "style0": {
+        "method": "abs_pearson",
+        "max": 0.99,
+        "min": 0.2546381475207077,
+        "mean": 0.7791214303203732,
+        "n_strong": 1178
+      },
+      "style1": {
+        "method": "abs_spearman",
+        "max": 0.9852944864552503,
+        "min": 0.28393020824431153,
+        "mean": 0.8100788234325562,
+        "n_strong": 1210
+      },
+      "style2": {
+        "method": "sparse_pearson_top20",
+        "max": 0.99,
+        "min": 0.5,
+        "mean": 0.5738797866686434,
+        "n_strong": 252
+      },
+      "style3": {
+        "method": "pearson_squared",
+        "max": 0.982613858808922,
+        "min": 0.06484058617277769,
+        "mean": 0.6397825142394515,
+        "n_strong": 832
+      },
+      "style4": {
+        "method": "partial_correlation",
+        "max": 0.7684899326657875,
+        "min": 0.011013168425584035,
+        "mean": 0.12414834689559258,
+        "n_strong": 4
+      }
+    }
+  },
+  "Traffic": {
+    "d": 20,
+    "styles": {
+      "style0": {
+        "method": "abs_pearson",
+        "max": 0.99,
+        "min": 0.011983328691222149,
+        "mean": 0.5226361535067179,
+        "n_strong": 196
+      },
+      "style1": {
+        "method": "abs_spearman",
+        "max": 0.8688332872542694,
+        "min": 0.014915371746099056,
+        "mean": 0.34360340366144754,
+        "n_strong": 32
+      },
+      "style2": {
+        "method": "sparse_pearson_top20",
+        "max": 0.99,
+        "min": 0.5,
+        "mean": 0.555333147760036,
+        "n_strong": 76
+      },
+      "style3": {
+        "method": "pearson_squared",
+        "max": 0.9887125118659997,
+        "min": 0.011459450186537328,
+        "mean": 0.36548369363108163,
+        "n_strong": 96
+      },
+      "style4": {
+        "method": "partial_correlation",
+        "max": 0.6938005490033238,
+        "min": 0.012380307325504792,
+        "mean": 0.12499770209897725,
+        "n_strong": 2
+      }
+    }
+  },
+  "Medical": {
+    "d": 20,
+    "styles": {
+      "style0": {
+        "method": "abs_pearson",
+        "max": 0.99,
+        "min": 0.01452226550585327,
+        "mean": 0.47446820789392136,
+        "n_strong": 182
+      },
+      "style1": {
+        "method": "abs_spearman",
+        "max": 0.9796526015438697,
+        "min": 0.01222476375532925,
+        "mean": 0.432442899747158,
+        "n_strong": 152
+      },
+      "style2": {
+        "method": "sparse_pearson_top20",
+        "max": 0.99,
+        "min": 0.5,
+        "mean": 0.5453126407381869,
+        "n_strong": 76
+      },
+      "style3": {
+        "method": "pearson_squared",
+        "max": 0.9861643627537493,
+        "min": 0.011630303061871168,
+        "mean": 0.32445974465799005,
+        "n_strong": 86
+      },
+      "style4": {
+        "method": "partial_correlation",
+        "max": 0.8957656707653258,
+        "min": 0.014099827079566245,
+        "mean": 0.18582499414768405,
+        "n_strong": 10
+      }
+    }
+  }
+}

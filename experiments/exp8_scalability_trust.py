@@ -143,7 +143,7 @@ def run_nonlinear_large(cfg):
                 P_prior = gen_prior(W0_true, Wk_true, acc=cfg.prior_acc, seed=seed)
 
                 # --- NAM + Trust (d<=30 only) ---
-                if d <= 10:  # NAM仅d=10, d≥20太慢(380+MLPs)
+                if d <= 10:  # NAM only at d=10; d>=20 is too slow (380+ MLPs)
                     t0 = time.time()
                     W0_nt, Wk_nt, tau_nt = run_prcd_nam_trust(
                         X, P_prior, d, cfg.K, lambda1=cfg.lambda1, lambda2=cfg.lambda2,
@@ -156,7 +156,7 @@ def run_nonlinear_large(cfg):
                     all_results.append(met)
                     print(f"    trust+NAM: {dt:.1f}s, AUROC={met['auroc']:.3f}")
 
-                    # NAM per-group baseline (原始NAM, 无trust)
+                    # NAM per-group baseline (original NAM, without trust propagation)
                     t0 = time.time()
                     W0_np, Wk_np, tau_np = run_prcd_map_nam(
                         X, P_prior, d, cfg.K, lambda1=cfg.lambda1, lambda2=cfg.lambda2,

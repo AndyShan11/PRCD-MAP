@@ -1,14 +1,15 @@
 """
 model_prcd_map_trust.py — PRCD-MAP with Structure-Aware Trust Propagation.
 
-核心改进: τ 从 per-group 标量向量升级为结构感知的 per-edge 矩阵.
-通过轻量 GAT 在先验图上传播信任, 利用邻域一致性信号.
+Key change: tau is upgraded from a per-group scalar vector to a structure-aware
+per-edge matrix. A lightweight GAT propagates trust on the prior graph, using
+neighborhood-consistency signals.
 
-与原 PRCD_MAP_Model 的区别:
-  - tau_groups (buffer) → TrustPropagationModule (nn.Module)
-  - _expand_tau() → trust_module.forward(P_prior, W_strength, ...)
-  - EB 更新: 对 trust_module 参数做梯度下降 (替代直接 SGD on tau_groups)
-  - 其余框架 (SVAR, prior modulation, ALM, DAG constraint) 完全不变
+Differences vs the original PRCD_MAP_Model:
+  - tau_groups (buffer) -> TrustPropagationModule (nn.Module)
+  - _expand_tau() -> trust_module.forward(P_prior, W_strength, ...)
+  - EB update: gradient descent on trust_module parameters (replaces direct SGD on tau_groups)
+  - The rest of the framework (SVAR, prior modulation, ALM, DAG constraint) is unchanged
 """
 
 import math
@@ -26,8 +27,8 @@ class PRCD_MAP_Trust(nn.Module):
     """
     PRCD-MAP with Structure-Aware Trust Propagation.
 
-    参数化: P_hat = sigmoid(logit(P) * τ(i,j))
-    其中 τ(i,j) = TrustPropagation(P_prior, |W|, graph_structure)
+    Parametrization: P_hat = sigmoid(logit(P) * tau(i,j))
+    where tau(i,j) = TrustPropagation(P_prior, |W|, graph_structure)
 
     Definition (Structure-Aware Trust Propagation):
       Given prior graph P ∈ [0,1]^{d×d} and current weight estimate W ∈ R^{d×d},
@@ -112,8 +113,8 @@ class PRCD_MAP_Trust(nn.Module):
         self.register_buffer("group_indices", group_indices)
 
         # Trust Propagation Module
-        # GAT 仅用于 d<=10 且未指定 lite; d>10 一律用 Lite (MLP + 邻域统计量)
-        # 原因: edge-level GAT 复杂度 O(d³), d=20 时每步 ~3h, 不可接受
+        # GAT only used when d<=10 and lite is not requested; d>10 always uses Lite (MLP + neighborhood stats)
+        # Reason: edge-level GAT is O(d^3); at d=20 each step is ~3h, which is unacceptable
         use_lite = trust_lite or self.d > 10
         if use_lite:
             self.trust_module = TrustPropagationLite(
@@ -151,11 +152,11 @@ class PRCD_MAP_Trust(nn.Module):
     # ---- τ computation ----
 
     def _get_W_strength(self):
-        """当前 W0 绝对值 (detached for trust input)."""
+        """Current |W0| (detached, for use as trust-module input)."""
         return (self.W0.detach() * self.off_diag_mask).abs()
 
     def _compute_tau_matrix(self):
-        """通过 trust propagation 计算 per-edge τ."""
+        """Compute per-edge tau via trust propagation."""
         if self.learn_tau:
             W_str = self._get_W_strength()
             return self.trust_module(self.P_prior, W_str, self.group_indices, self.off_diag_mask)
@@ -163,11 +164,11 @@ class PRCD_MAP_Trust(nn.Module):
             return self.tau_groups[self.group_indices]
 
     def _expand_tau(self):
-        """兼容接口: 返回 (d, d) tau matrix."""
+        """Compatibility shim: returns the (d, d) tau matrix."""
         return self._compute_tau_matrix()
 
     def get_tau(self):
-        """返回 τ 均值."""
+        """Return mean tau."""
         if self.learn_tau:
             return self.trust_module.get_tau_mean(
                 self.P_prior, self._get_W_strength(),
@@ -250,7 +251,7 @@ class PRCD_MAP_Trust(nn.Module):
         return pred
 
     def compute_losses(self, X_t, X_lags, rho, alpha, obs_mask=None):
-        # 内层优化时 detach tau: trust module 梯度仅在 EB 阶段计算
+        # During inner optimization, detach tau: trust-module gradients are only computed in the EB phase
         with torch.no_grad():
             tau_matrix = self._compute_tau_matrix()
         tau_matrix = tau_matrix.detach()
@@ -282,8 +283,8 @@ class PRCD_MAP_Trust(nn.Module):
 
     def compute_eb_objective(self, X_t, X_lags):
         """
-        EB objective: trust module 参数的梯度通过此函数回传.
-        W0, Wk 固定 (detached), 仅 trust module 参数带梯度.
+        EB objective: gradients for the trust module flow through this function.
+        W0, Wk are fixed (detached); only the trust-module parameters carry gradients.
         """
         dev = X_t.device
         T, d = X_t.shape
@@ -360,12 +361,12 @@ class PRCD_MAP_Trust(nn.Module):
                 corr, _ = spearmanr(C[mask], P[mask])
             if np.isnan(corr):
                 corr = 0.0
-            # 根据相关性调整 trust module bias
+            # Adjust the trust-module bias based on the correlation
             lo, hi = -0.05, 0.20
             if corr <= lo:
-                target_sigmoid = 0.01  # 接近 tau_min
+                target_sigmoid = 0.01  # close to tau_min
             elif corr >= hi:
-                target_sigmoid = 0.99  # 接近 tau_max
+                target_sigmoid = 0.99  # close to tau_max
             else:
                 frac = (corr - lo) / (hi - lo)
                 target_sigmoid = frac
@@ -443,9 +444,9 @@ def train_prcd_trust_alm(
     """
     ALM training with Structure-Aware Trust Propagation.
 
-    与原始 train_prcd_alm 的区别:
-    - 中间层 EB 更新: 对 trust_module 参数做 Adam 优化 (替代 SGD on tau_groups)
-    - 内层 Adam: W0, Wk + trust_module 参数一起优化 (trust module 贡献 τ → loss)
+    Differences vs the original train_prcd_alm:
+    - Middle EB update: Adam over trust_module parameters (replaces SGD on tau_groups)
+    - Inner Adam: W0, Wk and trust_module parameters are optimized together (trust module contributes tau -> loss)
     """
     device = next(model.parameters()).device
     X_t = X_t.to(device)

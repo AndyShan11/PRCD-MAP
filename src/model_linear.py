@@ -1,14 +1,15 @@
 """
 model_prcd_map.py — PRCD-MAP v3 (Empirical Bayes)
-改动 (相对 v2):
-  - 分组温度 τ_g (按先验概率分位数分组, 默认4组)
-  - 经验贝叶斯更新 τ: 双层优化, Laplace近似边际似然
-  - 三层优化结构: 外层ALM(α,ρ) → 中间层EB更新τ → 内层Adam优化W
-  - 去掉旧的 agreement-based τ 更新 和 adaptive_lambda
-  - Hessian对角近似 (线性SVAR解析形式, 计算代价可控)
+Changes vs v2:
+  - Grouped temperature tau_g (edges grouped by prior-probability quantiles, 4 groups by default)
+  - Empirical-Bayes update of tau: bilevel optimization with Laplace-approx marginal likelihood
+  - Three-level optimization: outer ALM(alpha, rho) -> middle EB update of tau -> inner Adam over W
+  - Removed the legacy agreement-based tau update and adaptive_lambda
+  - Diagonal Hessian approximation (analytic for linear SVAR; cheap)
 """
 
 import math
+import os
 import warnings
 import numpy as np
 import torch
@@ -21,15 +22,15 @@ class PRCD_MAP_Model(nn.Module):
     """
     MAP-consistent PRCD with Empirical Bayes temperature calibration.
 
-    核心改进: τ 从全局标量升级为分组向量 τ_g, 通过最大化 Laplace 近似
-    边际似然在 ALM 外循环之间更新, 与内层 W 优化解耦.
+    Key change: tau is upgraded from a global scalar to a grouped vector tau_g, updated by maximizing
+    a Laplace-approx marginal likelihood between ALM outer iterations, decoupled from the inner W loop.
 
-    参数化: sigmoid(logit(P) * τ), τ∈[0.01, 1.0].
-    τ=1 → 完全使用先验, τ→0 → P_hat→0.5 (忽略先验).
-    梯度 ∂sigmoid/∂τ = logit(P) · sigmoid'(...), 不因 P≈0.5 而消失.
+    Parametrization: sigmoid(logit(P) * tau), tau in [0.01, 1.0].
+    tau=1 -> fully use the prior; tau->0 -> P_hat->0.5 (ignore prior).
+    Gradient d sigmoid / d tau = logit(P) * sigmoid'(...), does not vanish when P~0.5.
 
-    分组策略: 按 P_prior 非对角元素的分位数将边分为 n_tau_groups 组,
-    同组边共享温度参数. 低先验/高先验区域可独立校准, 抗 systematic bias.
+    Grouping: edges are split into n_tau_groups groups by quantiles of off-diagonal P_prior;
+    edges within a group share a temperature, so low- and high-prior regions calibrate independently.
     """
 
     def __init__(
@@ -63,7 +64,7 @@ class PRCD_MAP_Model(nn.Module):
         self.delta = float(delta)
         self.apply_prior_to_w0 = bool(apply_prior_to_w0)
 
-        # 损失函数类型
+        # Loss function type
         self.loss_type = str(loss_type)
         if self.loss_type not in ("mse", "huber", "laplace"):
             raise ValueError(f"loss_type must be 'mse'/'huber'/'laplace', got '{loss_type}'")
@@ -71,7 +72,7 @@ class PRCD_MAP_Model(nn.Module):
         self.prior_l1_weight = bool(prior_l1_weight)
         self.tau_prior_sigma = float(tau_prior_sigma)
 
-        # 无环约束类型
+        # Acyclicity constraint type
         if acyclicity not in ("dagma", "notears"):
             raise ValueError(f"acyclicity must be 'dagma' or 'notears', got '{acyclicity}'")
         self.acyclicity = acyclicity
@@ -80,39 +81,39 @@ class PRCD_MAP_Model(nn.Module):
         else:
             self.dagma_s = float(dagma_s)
 
-        # 模型参数
+        # Model parameters
         init_scale = 1e-2
         self.W0 = nn.Parameter(init_scale * torch.randn(self.d, self.d))
         self.Wk = nn.ParameterList(
             [nn.Parameter(init_scale * torch.randn(self.d, self.d)) for _ in range(self.K)]
         )
 
-        # 先验矩阵
+        # Prior matrix
         P_prior_tensor = torch.tensor(P_prior, dtype=torch.float32)
         if P_prior_tensor.shape != (self.d, self.d):
             raise ValueError(f"P_prior must have shape ({self.d},{self.d}), got {tuple(P_prior_tensor.shape)}")
         self.register_buffer("P_prior", P_prior_tensor)
         self.register_buffer("off_diag_mask", 1.0 - torch.eye(self.d))
 
-        # 预计算 logit(P_prior), 避免重复计算
+        # Precompute logit(P_prior) to avoid recomputation
         P_clamped = torch.clamp(P_prior_tensor, self.eps_prior, 1.0 - self.eps_prior)
         self.register_buffer("_prior_logits", torch.log(P_clamped) - torch.log1p(-P_clamped))
 
-        # τ 配置
+        # tau configuration
         self.learn_tau = bool(learn_tau)
         self.tau_min = float(tau_min)
         self.tau_max = float(tau_max)
         if not (self.tau_min < self.tau_max):
             raise ValueError("tau_min must be < tau_max")
 
-        # ---- 分组 τ ----
+        # ---- grouped tau ----
         self.n_tau_groups = max(1, int(n_tau_groups))
         group_indices, actual_n_groups = self._build_tau_groups(P_prior_tensor)
         self.n_tau_groups = actual_n_groups
         self.register_buffer("group_indices", group_indices)
 
-        # 初始化: learn_tau 时从 τ_min 起步 (保守策略: 先忽略先验, 等 EB 验证后再提升)
-        # 乘法参数化: τ→0 忽略先验, τ=1 完全使用先验
+        # Init: when learn_tau is on, start from tau_min (conservative: ignore prior until EB raises it)
+        # Multiplicative form: tau->0 ignores prior, tau=1 fully uses prior
         if self.learn_tau:
             init_tau = float(np.clip(self.tau_min, self.tau_min, self.tau_max))
         else:
@@ -124,8 +125,8 @@ class PRCD_MAP_Model(nn.Module):
 
     def _build_tau_groups(self, P_prior_tensor: torch.Tensor):
         """
-        按 P_prior 非对角元素的分位数将边分组.
-        返回 (group_indices: LongTensor[d,d], actual_n_groups: int).
+        Group edges by quantiles of off-diagonal P_prior.
+        Returns (group_indices: LongTensor[d,d], actual_n_groups: int).
         """
         mask = self.off_diag_mask.bool()
         p_offdiag = P_prior_tensor[mask]
@@ -133,7 +134,7 @@ class PRCD_MAP_Model(nn.Module):
         if self.n_tau_groups <= 1:
             return torch.zeros(self.d, self.d, dtype=torch.long), 1
 
-        # 分位点边界 (去重以处理大量相同值的情况)
+        # Quantile boundaries (deduped to handle many tied values)
         quantile_pts = torch.linspace(0.0, 1.0, self.n_tau_groups + 1)[1:-1]
         boundaries = torch.quantile(p_offdiag.float(), quantile_pts)
         boundaries = torch.unique(boundaries)
@@ -143,22 +144,22 @@ class PRCD_MAP_Model(nn.Module):
         return group_indices.long(), actual_n_groups
 
     # --------------------------------------------------------
-    # τ 相关
+    # tau-related
     # --------------------------------------------------------
     def _expand_tau(self) -> torch.Tensor:
-        """将分组 τ 扩展为 (d, d) 矩阵."""
+        """Expand grouped tau to a (d, d) matrix."""
         return self.tau_groups[self.group_indices]
 
     def _expand_tau_from(self, tau_groups_var: torch.Tensor) -> torch.Tensor:
-        """从给定的 τ 向量扩展 (支持 autograd)."""
+        """Expand from a given tau vector (autograd-compatible)."""
         return tau_groups_var[self.group_indices]
 
     def get_tau(self) -> torch.Tensor:
-        """返回 τ 均值 (用于日志/兼容)."""
+        """Return mean tau (for logging / compatibility)."""
         return self.tau_groups.mean()
 
     def set_tau(self, value: float):
-        """将所有 τ 组设为同一值."""
+        """Set all tau groups to the same value."""
         value = float(np.clip(value, self.tau_min, self.tau_max))
         self.tau_groups.fill_(value)
 
@@ -168,9 +169,9 @@ class PRCD_MAP_Model(nn.Module):
     def calibrated_prior(self, tau_matrix: torch.Tensor) -> torch.Tensor:
         """
         tau_matrix: (d, d).
-        乘法参数化: sigmoid(logit(P) * τ).
-        τ=1 → 完全使用先验, τ→0 → P_hat→0.5 (忽略先验).
-        梯度 ∂/∂τ = logit(P), 不因 P≈0.5 而消失.
+        Multiplicative form: sigmoid(logit(P) * tau).
+        tau=1 -> fully use the prior; tau->0 -> P_hat->0.5 (ignore prior).
+        Gradient d/d tau = logit(P), does not vanish when P~0.5.
         """
         return torch.sigmoid(self._prior_logits * tau_matrix)
 
@@ -179,7 +180,7 @@ class PRCD_MAP_Model(nn.Module):
         return (1.0 - P_hat) + self.delta
 
     # --------------------------------------------------------
-    # 无环约束
+    # Acyclicity constraint
     # --------------------------------------------------------
     def _compute_h_notears(self) -> torch.Tensor:
         """NOTEARS: h(W) = tr(exp(W⊙W)) - d"""
@@ -207,12 +208,12 @@ class PRCD_MAP_Model(nn.Module):
             return self._compute_h_notears()
 
     # --------------------------------------------------------
-    # 损失计算
+    # Loss computation
     # --------------------------------------------------------
     def _compute_robust_loss(self, residuals: torch.Tensor,
                              obs_mask: torch.Tensor = None) -> torch.Tensor:
         """
-        鲁棒回归损失, 返回标量.
+        Robust regression loss, returns a scalar.
         obs_mask: (T, d) binary mask, 1=observed, 0=missing. None=all observed.
         """
         T, d = residuals.shape
@@ -239,7 +240,7 @@ class PRCD_MAP_Model(nn.Module):
         return torch.sum(loss) / n_obs
 
     def _compute_prior_adjusted_l1(self, tau_matrix: torch.Tensor) -> torch.Tensor:
-        """先验调制L1: 高先验概率边减少惩罚, 低先验概率边增加惩罚."""
+        """Prior-modulated L1: high-prior edges get less penalty, low-prior edges more."""
         W0_adj = self.get_W0_adj()
         if not self.prior_l1_weight:
             return self.lambda1 * torch.norm(W0_adj, p=1)
@@ -256,7 +257,7 @@ class PRCD_MAP_Model(nn.Module):
 
     def compute_losses(self, X_t: torch.Tensor, X_lags, rho: float, alpha: float,
                        obs_mask: torch.Tensor = None):
-        """内层损失: τ 固定 (从 buffer 读取, 无梯度).
+        """Inner-loop loss: tau is fixed (read from buffer, no grad).
         obs_mask: (T, d) binary mask for missing data support. None=all observed.
         """
         tau_matrix = self._expand_tau()
@@ -269,7 +270,7 @@ class PRCD_MAP_Model(nn.Module):
 
         W0_adj = self.get_W0_adj()
 
-        # 先验加权 L2 (prior-weighted ridge)
+        # Prior-weighted L2 (prior-weighted ridge)
         loss_prior = 0.0
         for k in range(self.K):
             loss_prior = loss_prior + 0.5 * self.lambda2 * torch.sum(Omega * (self.Wk[k] ** 2))
@@ -277,7 +278,7 @@ class PRCD_MAP_Model(nn.Module):
             Omega_w0 = Omega * self.off_diag_mask
             loss_prior = loss_prior + 0.5 * self.lambda2 * torch.sum(Omega_w0 * (W0_adj ** 2))
 
-        # 无环约束 + ALM
+        # Acyclicity constraint + ALM
         h_val = self._compute_h_w0()
         loss_alm = loss_mse + loss_l1 + loss_prior + (alpha * h_val) + 0.5 * rho * (h_val ** 2)
 
@@ -288,15 +289,15 @@ class PRCD_MAP_Model(nn.Module):
         return loss_alm, loss_mse, loss_l1, loss_prior, h_val, tau_mean
 
     # --------------------------------------------------------
-    # Prior quality assessment (训练前快速评估)
+    # Prior quality assessment (quick pre-training check)
     # --------------------------------------------------------
     def calibrate_tau_from_data(self, X_t: torch.Tensor, X_lags):
         """
-        训练前用快速 Lasso VAR 估计边, 与 P_prior 比较, 设置 τ.
+        Before training, run a fast Lasso VAR edge estimate, compare with P_prior, and set tau.
 
-        原理: OLS/Lasso 回归无需 DAG 约束, 毫秒级完成. 得到的
-        系数绝对值反映变量间关联强度. 将此与 P_prior 做 Spearman
-        相关: 正相关 → 先验可信 (τ=1.0), 否则 → 先验不可靠 (τ_max).
+        Rationale: OLS/Lasso fits without a DAG constraint and is millisecond-cheap.
+        Absolute coefficients reflect pairwise association strength. Compare them with P_prior via Spearman:
+        positive correlation -> trust prior (tau=1.0), otherwise -> unreliable prior (tau_max).
         """
         from scipy.stats import spearmanr
 
@@ -304,7 +305,7 @@ class PRCD_MAP_Model(nn.Module):
             X_t_np = X_t.detach().cpu().numpy()
             d = self.d
 
-            # 简单成对相关作为边强度代理 (快速, 对 d≤100 足够)
+            # Simple pairwise correlation as an edge-strength proxy (fast, ok for d<=100)
             C = np.abs(np.corrcoef(X_t_np.T))
             np.fill_diagonal(C, 0.0)
 
@@ -318,13 +319,13 @@ class PRCD_MAP_Model(nn.Module):
             if np.isnan(corr):
                 corr = 0.0
 
-            # Smooth mapping: corr → τ (乘法参数化)
+            # Smooth mapping: corr -> tau (multiplicative form)
             # High corr → high τ (trust prior), low/negative corr → low τ (ignore prior)
             # Piecewise linear:
             #   corr ≤ -0.05  → τ = tau_min  (bad prior, ignore)
             #   corr ≥  0.20  → τ = tau_max  (good prior, full trust)
             #   in between    → linear interpolation
-            # 注: 阈值从0.40降为0.20, 让中等质量先验也能获得较高tau
+            # Note: threshold lowered from 0.40 to 0.20 so a medium-quality prior can still get a high tau
             lo, hi = -0.05, 0.20
             if corr <= lo:
                 target = self.tau_min
@@ -338,20 +339,20 @@ class PRCD_MAP_Model(nn.Module):
             self.tau_groups.fill_(target)
 
     # --------------------------------------------------------
-    # 经验贝叶斯: Laplace 近似边际似然 (保留备用)
+    # Empirical Bayes: Laplace-approx marginal likelihood (kept as fallback)
     # --------------------------------------------------------
     def compute_eb_objective(
         self, X_t: torch.Tensor, X_lags, tau_groups_var: torch.Tensor
     ) -> torch.Tensor:
         """
-        计算经验贝叶斯目标 (负对数边际似然的 Laplace 近似).
+        Compute the empirical-Bayes objective (Laplace approx of negative log marginal likelihood).
 
         L_EB(τ) = L_prior(W*, τ) + L_l1(W*, τ) + (1/2) Σ log H_ii(τ)
 
-        其中 W* 固定 (detach), τ_groups_var 带梯度.
-        数据拟合项 L_data(W*) 不依赖 τ, 已省略.
+        Here W* is fixed (detached); tau_groups_var carries the gradient.
+        The data-fit term L_data(W*) does not depend on tau and is omitted.
 
-        Hessian 对角近似 (线性 SVAR 解析形式):
+        Diagonal Hessian approximation (analytic for linear SVAR):
           H_{W0[i,j]} = ‖X_t[:,i]‖²/(T·d) + λ₂·Ω_{ij}(τ)
           H_{Wk[i,j]} = ‖X_lag_k[:,i]‖²/(T·d) + λ₂·Ω_{ij}(τ)
 
@@ -362,13 +363,13 @@ class PRCD_MAP_Model(nn.Module):
         dev = X_t.device
         T, d = X_t.shape
 
-        # τ 矩阵 (梯度流经 tau_groups_var → group_indices 索引)
+        # tau matrix (grad flows through tau_groups_var -> group_indices indexing)
         tau_matrix = self._expand_tau_from(tau_groups_var)
         Omega = self.omega_mask(tau_matrix)
 
         W0_adj = self.get_W0_adj().detach()
 
-        # --- 先验 L2 项 ---
+        # --- prior L2 term ---
         loss_prior = torch.tensor(0.0, device=dev)
         for k in range(self.K):
             Wk_det = self.Wk[k].detach()
@@ -377,7 +378,7 @@ class PRCD_MAP_Model(nn.Module):
             Omega_w0 = Omega * self.off_diag_mask
             loss_prior = loss_prior + 0.5 * self.lambda2 * torch.sum(Omega_w0 * (W0_adj ** 2))
 
-        # --- 先验调制 L1 项 ---
+        # --- prior-modulated L1 term ---
         if self.prior_l1_weight:
             P_hat = self.calibrated_prior(tau_matrix)
             coeff = torch.clamp(1.5 - P_hat, 0.1, 1.5) * self.off_diag_mask
@@ -385,14 +386,14 @@ class PRCD_MAP_Model(nn.Module):
         else:
             loss_l1 = self.lambda1 * torch.sum(torch.abs(W0_adj))
 
-        # --- Laplace 近似: (1/2) Σ log H_ii ---
+        # --- Laplace approx: (1/2) sum log H_ii ---
         X_t_det = X_t.detach()
-        # 数据项 Hessian 对角 (MSE 近似, 对 Huber/Laplace 也合理)
-        data_hess_row = (X_t_det ** 2).sum(0) / (T * d)  # (d,) — 第 i 行的贡献
+        # Data-term diagonal Hessian (MSE approx; reasonable for Huber/Laplace too)
+        data_hess_row = (X_t_det ** 2).sum(0) / (T * d)  # (d,) -- contribution of row i
 
         log_det_term = torch.tensor(0.0, device=dev)
 
-        # W0 贡献 (仅非对角)
+        # W0 contribution (off-diagonal only)
         if self.apply_prior_to_w0:
             Omega_w0 = Omega * self.off_diag_mask
             H_w0 = data_hess_row.unsqueeze(1).expand(d, d) + self.lambda2 * Omega_w0
@@ -400,30 +401,30 @@ class PRCD_MAP_Model(nn.Module):
                 torch.log(H_w0.clamp(min=1e-10)) * self.off_diag_mask
             )
 
-        # Wk 贡献
+        # Wk contribution
         for k_idx in range(self.K):
             X_lag_det = X_lags[k_idx].detach()
             data_hess_k = (X_lag_det ** 2).sum(0) / (T * d)
             H_wk = data_hess_k.unsqueeze(1).expand(d, d) + self.lambda2 * Omega
             log_det_term = log_det_term + torch.sum(torch.log(H_wk.clamp(min=1e-10)))
 
-        # --- Agreement 项: 先验与 W* 的一致性交叉熵 ---
-        # 如果先验好, P_hat 与 |W*| 的边模式一致, 交叉熵低 → 推 τ 高
-        # 如果先验差, 交叉熵高 → 推 τ 低 (P_hat→0.5, 交叉熵趋于 log2)
-        # 这比 loss_prior+loss_l1 更直接: 它显式衡量先验预测数据的能力
+        # --- Agreement term: cross-entropy between prior and |W*| ---
+        # If the prior is good, P_hat matches |W*|, cross-entropy is low -> push tau up
+        # If the prior is bad, cross-entropy is high -> push tau down (P_hat->0.5, CE -> log2)
+        # More direct than loss_prior+loss_l1: it explicitly measures the prior's predictive ability
         P_hat = self.calibrated_prior(tau_matrix)
         W0_abs = torch.abs(W0_adj)
-        # soft targets: 将 |W*| 映射到 [0,1] 概率
+        # soft targets: map |W*| to a [0,1] probability
         w_max = W0_abs.max().clamp(min=1e-6)
         W0_prob = (W0_abs / w_max).clamp(1e-6, 1.0 - 1e-6) * self.off_diag_mask
         P_hat_safe = P_hat.clamp(1e-6, 1.0 - 1e-6)
-        # 二元交叉熵 (soft)
+        # binary cross-entropy (soft)
         agreement_loss = -torch.sum(
             (W0_prob * torch.log(P_hat_safe) + (1.0 - W0_prob) * torch.log(1.0 - P_hat_safe))
             * self.off_diag_mask
         )
 
-        # --- τ 正则: 弱二次惩罚防止极端值 ---
+        # --- tau regularizer: weak quadratic penalty against extreme values ---
         tau_reg = torch.tensor(0.0, device=dev)
         if self.tau_prior_sigma > 0:
             tau_reg = 0.5 * torch.sum((tau_groups_var - 0.5) ** 2) / (self.tau_prior_sigma ** 2)
@@ -436,22 +437,22 @@ class PRCD_MAP_Model(nn.Module):
 # ============================================================
 def _ols_warm_start(model: PRCD_MAP_Model, X_t: torch.Tensor, X_lags, verbose=False):
     """
-    用 Ridge 回归为 W0, Wk 提供初始值, 避免随机初始化陷入局部最优.
-    标准做法: NOTEARS (Zheng et al. 2018) 也使用类似 warm-start.
+    Use ridge regression to initialize W0, Wk; avoids random-init local minima.
+    Standard practice: NOTEARS (Zheng et al. 2018) uses a similar warm start.
     """
     d = model.d
     K = model.K
     T = X_t.shape[0]
 
     with torch.no_grad():
-        # 构建回归矩阵: Y = X_t, Regressors = [X_t, X_lag1, ..., X_lagK]
-        # 对每个目标变量 j, 解: x_t[:,j] = X_t @ w0[:,j] + sum_k X_lag_k @ wk[:,j]
-        # 为简化, 用全局 Ridge: W = (R^T R + lambda I)^{-1} R^T Y
+        # Build regressor matrix: Y = X_t, regressors = [X_t, X_lag1, ..., X_lagK]
+        # For each target j: x_t[:,j] = X_t @ w0[:,j] + sum_k X_lag_k @ wk[:,j]
+        # For simplicity, use a global ridge: W = (R^T R + lambda I)^-1 R^T Y
         parts = [X_t]
         for lag in X_lags:
             parts.append(lag)
         R = torch.cat(parts, dim=1)  # (T, d*(K+1))
-        ridge_lam = 0.1  # 较强正则防止过拟合
+        ridge_lam = 0.1  # strong regularizer to avoid overfitting
         RtR = R.T @ R + ridge_lam * torch.eye(R.shape[1], device=R.device)
         RtY = R.T @ X_t
         try:
@@ -461,11 +462,11 @@ def _ols_warm_start(model: PRCD_MAP_Model, X_t: torch.Tensor, X_lags, verbose=Fa
                 print(">>> OLS warm-start: solve failed, using random init")
             return
 
-        # 提取 W0 (前d行), Wk (后续d行)
+        # Extract W0 (first d rows) and Wk (subsequent d rows)
         W0_init = W_all[:d, :]  # (d, d)
-        # 清除对角线 (自回归不计入 W0)
+        # Zero the diagonal (autoregressive terms are not in W0)
         W0_init.fill_diagonal_(0.0)
-        # 缩放: 防止初始值过大导致 DAG constraint 爆炸
+        # Scale down to prevent the DAG constraint from blowing up at init
         w0_max = W0_init.abs().max().clamp(min=1e-6)
         if w0_max > 0.5:
             W0_init = W0_init * (0.5 / w0_max)
@@ -484,7 +485,7 @@ def _ols_warm_start(model: PRCD_MAP_Model, X_t: torch.Tensor, X_lags, verbose=Fa
 
 
 # ============================================================
-# 训练函数
+# Training functions
 # ============================================================
 def train_prcd_alm(
     model: PRCD_MAP_Model,
@@ -513,12 +514,12 @@ def train_prcd_alm(
     obs_mask: torch.Tensor = None,
 ):
     """
-    ALM 训练:
+    ALM training:
 
-    训练前: OLS warm-start + 快速 Ridge VAR 估计先验质量, 设置 τ
-    外层 (Augmented Lagrangian): 更新 α, ρ 以强制无环约束
-      内层 (Adam): 固定 τ, 优化 W₀, W₁:K (with early stopping)
-    支持 lambda scheduling: 前1/3用大lambda促进稀疏, 后2/3降低精调
+    Pre-train: OLS warm-start + fast ridge VAR to assess prior quality and set tau
+    Outer (Augmented Lagrangian): update alpha, rho to enforce acyclicity
+      Inner (Adam): with tau fixed, optimize W0, W1:K (with early stopping)
+    Supports lambda scheduling: first 1/3 uses a larger lambda for sparsity, last 2/3 fine-tunes
     """
     device = next(model.parameters()).device
     X_t = X_t.to(device)
@@ -531,7 +532,7 @@ def train_prcd_alm(
         _ols_warm_start(model, X_t, X_lags, verbose=verbose)
 
     def _run_alm_phase(n_iters, rho_start, alpha_start, phase_label=""):
-        """执行 ALM 外循环, 返回 (rho, alpha, h_now)."""
+        """Run the ALM outer loop and return (rho, alpha, h_now)."""
         rho_local = float(rho_start)
         alpha_local = float(alpha_start)
         h_now = float("inf")
@@ -579,19 +580,22 @@ def train_prcd_alm(
 
         return rho_local, alpha_local, h_now
 
-    # === 训练前 τ 校准: 快速 Ridge VAR 估计 + 与 P_prior 相关性 ===
+    # === pre-training tau calibration: fast ridge VAR + correlation with P_prior ===
     if model.learn_tau:
         model.calibrate_tau_from_data(X_t, X_lags)
         if verbose:
             tau_str = ", ".join(f"{t:.3f}" for t in model.tau_groups.tolist())
             print(f">>> τ pre-calibrated: [{tau_str}]")
 
-    # === Lambda scheduling: 前1/3用大lambda促稀疏, 后2/3降低精调 ===
+    # === Lambda scheduling: large lambda for the first 1/3, then reduced ===
     lambda1_orig = model.lambda1
-    lambda1_warmup = lambda1_orig * 5.0  # Phase 1: 5x lambda for sparsity
+    # Warmup factor defaults to 5.0; can be overridden via env var for
+    # lambda-sensitivity experiments (exp16) without touching this file.
+    _lam1_factor = float(os.environ.get("PRCD_LAM1_WARMUP_FACTOR", "5.0"))
+    lambda1_warmup = lambda1_orig * _lam1_factor
     phase1_end = max_iter // 3
 
-    # === 主训练循环: 三层优化 (外层ALM → 内层Adam优化W → 中间层EB更新τ) ===
+    # === Main loop: three-level optimization (outer ALM -> inner Adam over W -> middle EB update of tau) ===
     rho = float(rho_0)
     alpha = 0.0
 
@@ -666,10 +670,10 @@ def train_prcd_alm(
         alpha = alpha + rho * h_now
         rho = min(rho * float(gamma), float(rho_max))
 
-    # 恢复原始 lambda1
+    # Restore original lambda1
     model.lambda1 = lambda1_orig
 
-    # 提取结果
+    # Extract results
     with torch.no_grad():
         W0_raw = model.get_W0_adj().detach().cpu().numpy()
         Wk_raw = [wk.detach().cpu().numpy() for wk in model.Wk]

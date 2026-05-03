@@ -87,15 +87,15 @@ class Cfg:
     do_nam:           bool = True
 
     # Electricity paths
-    electricity_xlsx: str = "/home/shanxh/PRCD/0227test.xlsx"
-    electricity_prior: str = "/home/shanxh/PRCD/Auto_Generated_Prior.csv"
+    electricity_xlsx: str = "./data/electricity.xlsx"
+    electricity_prior: str = "./data/electricity_prior.csv"
 
     # Netsim fMRI
-    netsim_dir:       str = "/home/shanxh/PRCD/data/netsim"
+    netsim_dir:       str = "./data/netsim"
     netsim_sims:      List[int] = field(default_factory=lambda: [3, 4, 15])
 
     # CausalTime
-    causaltime_dir:   str = "/home/shanxh/PRCD/data/causaltime"
+    causaltime_dir:   str = "./data/causaltime"
     causaltime_datasets: List[str] = field(default_factory=lambda: ["AQI", "Traffic", "Medical"])
 
     # Which benchmark to run

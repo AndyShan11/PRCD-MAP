@@ -1,16 +1,17 @@
 """
 model_prcd_map_nam.py — PRCD-MAP with Neural Additive Model (NAM) parameterization.
 
-线性 SVAR 的非线性扩展: 每条边 (i→j) 用一个小 MLP f_{ij}(x_i) 替代线性权重 w_{ij} * x_i.
-滞后项保持线性 (Wk 不变), 仅瞬时效应非线性化.
+Nonlinear extension of the linear SVAR: each edge (i->j) uses a small MLP
+f_{ij}(x_i) in place of the linear weight w_{ij} * x_i. Lag terms stay linear
+(Wk unchanged); only instantaneous effects are nonlinearized.
 
-适用范围: d ≤ 30 (d=30 → 870 MLP, ~50K 参数).
-d>30 时训练时间显著增长, 建议使用线性模型.
+Recommended range: d <= 30 (at d=30 there are 870 MLPs, ~50K parameters).
+For d>30 training time grows sharply; the linear model is recommended.
 
-与 PRCD_MAP_Model 的关系:
-  - 共享: τ 分组机制, sigmoid(logit(P)*τ) 校准, Omega mask, EB 更新
-  - 替换: W0 线性矩阵 → d*(d-1) 个 EdgeMLP
-  - DAGMA 约束作用于 edge_strength 矩阵 (替代 W0⊙W0)
+Relation to PRCD_MAP_Model:
+  - Shared: tau grouping, sigmoid(logit(P)*tau) calibration, Omega mask, EB update
+  - Replaced: W0 linear matrix -> d*(d-1) EdgeMLPs
+  - DAGMA constraint acts on the edge_strength matrix (instead of W0 elementwise-squared)
 """
 
 import math
@@ -23,7 +24,7 @@ from scipy.stats import ConstantInputWarning
 
 
 class EdgeMLP(nn.Module):
-    """单边非线性函数 f_{ij}: R → R."""
+    """Per-edge nonlinear function f_{ij}: R -> R."""
 
     def __init__(self, hidden=16, n_layers=2):
         super().__init__()
@@ -32,7 +33,7 @@ class EdgeMLP(nn.Module):
             layers += [nn.Linear(hidden, hidden), nn.ReLU()]
         layers.append(nn.Linear(hidden, 1))
         self.net = nn.Sequential(*layers)
-        # 小初始化, 防止初始输出过大
+        # Small init to keep the initial output bounded
         for m in self.net:
             if isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, 0, 0.01)
@@ -43,7 +44,7 @@ class EdgeMLP(nn.Module):
         return self.net(x)
 
     def edge_strength(self):
-        """可微分的边强度 (参数 Frobenius 范数)."""
+        """Differentiable edge strength (Frobenius norm of parameters)."""
         total = torch.tensor(0.0, device=next(self.parameters()).device)
         for p in self.parameters():
             total = total + torch.sum(p ** 2)
@@ -93,7 +94,7 @@ class PRCD_MAP_NAM(nn.Module):
         else:
             self.dagma_s = float(dagma_s)
 
-        # Edge MLPs: d*(d-1) 个, 按 (i,j) i≠j 排列
+        # Edge MLPs: d*(d-1) of them, indexed by (i, j) with i != j
         self.edge_mlps = nn.ModuleList()
         self._edge_idx = {}  # (i, j) → index in ModuleList
         idx = 0
@@ -104,13 +105,13 @@ class PRCD_MAP_NAM(nn.Module):
                     self._edge_idx[(i, j)] = idx
                     idx += 1
 
-        # 滞后矩阵 (保持线性)
+        # Lag matrices (kept linear)
         init_scale = 1e-2
         self.Wk = nn.ParameterList(
             [nn.Parameter(init_scale * torch.randn(self.d, self.d)) for _ in range(self.K)]
         )
 
-        # 先验矩阵
+        # Prior matrix
         P_prior_tensor = torch.tensor(P_prior, dtype=torch.float32)
         self.register_buffer("P_prior", P_prior_tensor)
         self.register_buffer("off_diag_mask", 1.0 - torch.eye(self.d))
@@ -118,7 +119,7 @@ class PRCD_MAP_NAM(nn.Module):
         P_clamped = torch.clamp(P_prior_tensor, self.eps_prior, 1.0 - self.eps_prior)
         self.register_buffer("_prior_logits", torch.log(P_clamped) - torch.log1p(-P_clamped))
 
-        # τ 配置
+        # tau configuration
         self.learn_tau = bool(learn_tau)
         self.tau_min = float(tau_min)
         self.tau_max = float(tau_max)
@@ -173,7 +174,7 @@ class PRCD_MAP_NAM(nn.Module):
     # Edge strength matrix
     # --------------------------------------------------------
     def get_W0_strength(self):
-        """返回 (d, d) 边强度矩阵, 对角线为 0. 可微分."""
+        """Return a differentiable (d, d) edge-strength matrix with zero diagonal."""
         dev = next(self.parameters()).device
         S = torch.zeros(self.d, self.d, device=dev)
         for (i, j), idx in self._edge_idx.items():
@@ -181,11 +182,11 @@ class PRCD_MAP_NAM(nn.Module):
         return S
 
     def get_W0_adj(self):
-        """兼容接口: 返回 detached numpy-compatible strength matrix."""
+        """Compatibility shim: returns a detached numpy-compatible strength matrix."""
         return self.get_W0_strength()
 
     # --------------------------------------------------------
-    # DAGMA 约束 (作用于 edge strength)
+    # DAGMA constraint (operates on edge strength)
     # --------------------------------------------------------
     def _compute_h_w0(self):
         S = self.get_W0_strength()
@@ -210,19 +211,19 @@ class PRCD_MAP_NAM(nn.Module):
         dev = X_t.device
         pred = torch.zeros(T, self.d, device=dev)
 
-        # 瞬时 NAM 效应
+        # Instantaneous NAM effect
         for (i, j), idx in self._edge_idx.items():
             x_i = X_t[:, i:i+1]  # (T, 1)
             pred[:, j] = pred[:, j] + self.edge_mlps[idx](x_i).squeeze(1)
 
-        # 滞后线性效应
+        # Linear lag effects
         for k in range(self.K):
             pred = pred + X_lags[k] @ self.Wk[k]
 
         return pred
 
     # --------------------------------------------------------
-    # 损失计算
+    # Loss computation
     # --------------------------------------------------------
     def compute_losses(self, X_t, X_lags, rho, alpha):
         tau_matrix = self._expand_tau()
@@ -327,7 +328,7 @@ class PRCD_MAP_NAM(nn.Module):
 
 
 # ============================================================
-# 训练函数
+# Training function
 # ============================================================
 def train_prcd_nam_alm(
     model: PRCD_MAP_NAM,
@@ -407,7 +408,7 @@ def train_prcd_nam_alm(
         alpha = alpha + rho * h_now
         rho = min(rho * float(gamma), float(rho_max))
 
-    # 提取结果
+    # Extract results
     with torch.no_grad():
         W0_strength = model.get_W0_strength().detach().cpu().numpy()
         Wk_raw = [wk.detach().cpu().numpy() for wk in model.Wk]

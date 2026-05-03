@@ -54,9 +54,14 @@ PRCD-MAP/
 │   └── baseline_rhino.py
 │
 ├── scripts/run_all.sh                # One-click reproduction
+├── results/                          # Pre-computed result CSVs (see results/README.md)
+│   ├── causaltime_10seed/                # 10-seed CausalTime trust validation
+│   ├── nonlinear/                        # Nonlinear regime characterization
+│   ├── scale/                            # d=20/50/100 with baselines
+│   ├── cross_sectional/                  # NOTEARS/DAGMA comparison
+│   ├── ablation/, community_mixing/, significance/
 ├── assets/                           # Figures for README
 ├── data/                             # Dataset directory (README.md inside)
-├── results_cache/                    # Pre-computed result caches (optional)
 ├── requirements.txt
 ├── LICENSE
 └── README.md
@@ -133,24 +138,28 @@ python exp9_llm_prior_pipeline.py --dataset AQI --seeds 0 1 2
 ## Data
 
 - **Synthetic data**: Generated on the fly (ER/BA graphs, SVAR simulation).
-- **CausalTime**: Download from [CausalTime repo](https://github.com/chengyxs/CausalTime) (MIT license); place at `data/causaltime/{pm25,traffic,medical}/`.
-- **Electricity**: China Electricity Council (CEC) monthly sector-level consumption; subject to data-sharing policy, available upon request for review purposes.
+- **CausalTime**: Download from the public CausalTime benchmark (MIT license); place at `data/causaltime/{AQI,Traffic,Medical}/`.
+- **Electricity**: Sector-level monthly consumption data from a national electricity council's statistical yearbook; subject to data-sharing policy, available upon request for review purposes.
 
 ## Paper-to-Code Map
 
-| Paper | Code |
-|---|---|
-| §3.2 Eq. (1)–(7) MAP objective | `src/model_linear.py` |
-| §3.2 Eq. (8) Trust propagation | `src/trust_propagation.py`, `src/model_linear_trust.py` |
-| §3.1 NAM extension (App F) | `src/model_nam.py`, `src/model_nam_trust.py` |
-| §3.3 Empirical Bayes | `train_prcd_alm` (linear) / `train_prcd_trust_alm` (trust) |
-| §4.2 Asymmetric robustness (Table 1) | `experiments/exp1_synthetic_benchmark.py` |
-| §4.3 CausalTime (Table 2) | `experiments/exp7_real_benchmarks_trust.py` |
-| §4.4 Ablation (Table 3) | `experiments/exp3_ablation.py` |
-| §4.5 Community Mixing (Table 7) | `experiments/exp10_community_mixing.py` |
-| App G Scalability | `experiments/exp8_scalability_trust.py` |
-| App L Significance test | `experiments/exp11_significance_test.py` |
-| Numerical theorem verification | `experiments/exp12_theory_verification.py` |
+| Paper | Code | Pre-computed CSV |
+|---|---|---|
+| §3.2 Eq. (1)–(7) MAP objective | `src/model_linear.py` | — |
+| §3.2 Eq. (8) Trust propagation | `src/trust_propagation.py`, `src/model_linear_trust.py` | — |
+| §3.1 NAM extension (App F) | `src/model_nam.py`, `src/model_nam_trust.py` | — |
+| §3.3 Empirical Bayes | `train_prcd_alm` (linear) / `train_prcd_trust_alm` (trust) | — |
+| §4.2 Asymmetric robustness (Table 1) | `experiments/exp1_synthetic_benchmark.py` | — |
+| §4.3 CausalTime (Table 2) | `experiments/exp7_real_benchmarks_trust.py` | `results/causaltime_10seed/` |
+| §4.4 Ablation (Table 4) | `experiments/exp3_ablation.py` | `results/ablation/` |
+| §4.4 Community Mixing (Table 3) | `experiments/exp10_community_mixing.py` | `results/community_mixing/` |
+| Sec. 4 nonlinear PCMCI+ trade-off | `experiments/exp1_synthetic_benchmark.py --sub nonlinear` | `results/nonlinear/` |
+| App "Main-text Scalability" ($d{\in}\{20,50,100\}$) | `experiments/exp1_synthetic_benchmark.py --sub scale` | `results/scale/` |
+| App "Cross-Sectional Structure Learning" | `experiments/exp5_cross_sectional.py` | `results/cross_sectional/` |
+| App "10-seed Trust Validation" on CausalTime | `experiments/exp7_real_benchmarks_trust.py` | `results/causaltime_10seed/` |
+| App G Scalability | `experiments/exp8_scalability_trust.py` | — |
+| App L Significance test | `experiments/exp11_significance_test.py` | `results/significance/` |
+| Numerical theorem verification | `experiments/exp12_theory_verification.py` | — |
 
 ## Hardware
 

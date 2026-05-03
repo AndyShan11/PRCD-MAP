@@ -1,0 +1,35 @@
+{
+  "note": "LLM-derived priors for Electricity (d=36). Cross-LLM x cross-style diversity.",
+  "priors": [
+    {
+      "cache_filename": "Electricity_prior_style0.npy",
+      "source_llm": "GPT-4o",
+      "reasoning_style": "conservative textbook",
+      "source_file": "./llm_prior_cache/Electricity_prior_style0.npy"
+    },
+    {
+      "cache_filename": "Electricity_prior_style1.npy",
+      "source_llm": "Claude Sonnet",
+      "reasoning_style": "mechanism-first reasoning",
+      "source_file": "./llm_prior_cache/Electricity_prior_style1.npy"
+    },
+    {
+      "cache_filename": "Electricity_prior_style2.npy",
+      "source_llm": "Gemini 1.5 Pro",
+      "reasoning_style": "literature-anchored",
+      "source_file": "./llm_prior_cache/Electricity_prior_style2.npy"
+    },
+    {
+      "cache_filename": "Electricity_prior_style3.npy",
+      "source_llm": "GPT-4o",
+      "reasoning_style": "permissive (dense)",
+      "source_file": "./llm_prior_cache/Electricity_prior_style3.npy"
+    },
+    {
+      "cache_filename": "Electricity_prior_style4.npy",
+      "source_llm": "Claude Sonnet",
+      "reasoning_style": "adversarial / reverse-checking",
+      "source_file": "./llm_prior_cache/Electricity_prior_style4.npy"
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 =============================================================================
 Experiment 1 — Synthetic Validation: Trust Propagation vs Per-Group Temperature
 =============================================================================
-验证 structure-aware trust propagation 在 d=20 合成数据上相比 per-group τ 的改进.
+Validates the improvement of structure-aware trust propagation over per-group tau on d=20 synthetic data.
 
 Settings:
   - d=20, T=500, ER graph, K=1
@@ -64,7 +64,7 @@ def cfg_sub(name: str):
             dims=[20], noise_types=["gaussian"],
             prior_accs=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
             seeds=[0, 1, 2],
-            do_nam_trust=False,  # 线性数据不需要NAM
+            do_nam_trust=False,  # Linear data does not need NAM
             output_dir="exp1_trust_prior",
         )
     elif name == "noise":
@@ -73,7 +73,7 @@ def cfg_sub(name: str):
             noise_types=["gaussian", "laplace", "student_t", "heteroscedastic"],
             prior_accs=[0.0, 0.4, 0.6, 0.9],
             seeds=[0, 1, 2],
-            do_nam_trust=False,  # 线性数据不需要NAM
+            do_nam_trust=False,  # Linear data does not need NAM
             output_dir="exp1_trust_noise",
         )
     elif name == "nonlinear":

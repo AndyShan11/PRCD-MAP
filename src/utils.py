@@ -56,7 +56,7 @@ except ImportError:
         HAS_NGC = True
     except ImportError:
         try:
-            # Neural-GC clone 在 home 目录下, 没有 setup.py, 直接加 sys.path
+            # Neural-GC clone is in the home dir without a setup.py; add to sys.path directly
             _ngc_path = os.path.expanduser("~/Neural-GC")
             if os.path.isdir(_ngc_path) and _ngc_path not in sys.path:
                 sys.path.insert(0, _ngc_path)
@@ -117,27 +117,30 @@ MARKERS = {
     "NGC":                   "*",
 }
 
+# Sector-name lookup used when the electricity dataset's column headers are
+# in a non-English source locale. Keys are placeholders here; populate with
+# the actual locale strings if running on the raw electricity workbook.
 ZH_TO_EN = {
-    '大工业电量': 'Large Ind.', '非普工业': 'Non-Std Ind.',
-    '居民生活': 'Residential', '商业用电': 'Commercial',
-    '农业': 'Agriculture', '黑色金属冶炼': 'Ferrous Metal',
-    '非金属矿物制品业(水泥)': 'Nonmetallic Min.',
-    '非金属矿物制品业': 'Nonmetallic Min.',
-    '化学制品制造业': 'Chemicals', '纺织业': 'Textiles',
-    '有色金属冶炼': 'Non-ferrous', '通信设备制造业': 'Comm. Equip.',
-    '金属制品业': 'Fab. Metal', '橡胶和塑料': 'Rubber/Plastics',
-    '机械': 'Machinery', '电子': 'Electronics', '石化': 'Petrochem.',
-    '食品': 'Food', '建筑业': 'Construction',
-    '交通仓储和邮政业': 'Logistics', '信息传输': 'IT/Telecom',
-    '金融业': 'Finance', '房地产业': 'Real Estate',
-    '制造业': 'Manufacturing', '皮革行业': 'Leather',
-    '化学纤维制造业': 'Chemical Fiber', '农林牧渔业': 'Agri./Fore./Fish.',
-    '住宿和餐饮业': 'Hotels/Catering', '租赁和商务服务': 'Leasing/Business',
-    '抽水蓄能': 'Pumped Storage', '非居照明': 'Non-Res. Lighting',
-    '工业': 'Industry', '公共服务及管理组织': 'Public Admin.',
-    '造纸和纸制品业': 'Paper Products', '批发和零售业': 'Wholesale/Retail',
-    '批发和零售业务': 'Wholesale/Retail', '服装': 'Apparel',
-    '服饰业': 'Apparel',
+    'sector_large_industry': 'Large Ind.', 'sector_nonstd_industry': 'Non-Std Ind.',
+    'sector_residential': 'Residential', 'sector_commercial': 'Commercial',
+    'sector_agriculture': 'Agriculture', 'sector_ferrous_metal': 'Ferrous Metal',
+    'sector_nonmetallic_min_cement': 'Nonmetallic Min.',
+    'sector_nonmetallic_min': 'Nonmetallic Min.',
+    'sector_chemicals': 'Chemicals', 'sector_textiles': 'Textiles',
+    'sector_nonferrous': 'Non-ferrous', 'sector_comm_equip': 'Comm. Equip.',
+    'sector_fab_metal': 'Fab. Metal', 'sector_rubber_plastics': 'Rubber/Plastics',
+    'sector_machinery': 'Machinery', 'sector_electronics': 'Electronics', 'sector_petrochem': 'Petrochem.',
+    'sector_food': 'Food', 'sector_construction': 'Construction',
+    'sector_logistics': 'Logistics', 'sector_it_telecom': 'IT/Telecom',
+    'sector_finance': 'Finance', 'sector_real_estate': 'Real Estate',
+    'sector_manufacturing': 'Manufacturing', 'sector_leather': 'Leather',
+    'sector_chemical_fiber': 'Chemical Fiber', 'sector_agri_fore_fish': 'Agri./Fore./Fish.',
+    'sector_hotels_catering': 'Hotels/Catering', 'sector_leasing_business': 'Leasing/Business',
+    'sector_pumped_storage': 'Pumped Storage', 'sector_nonres_lighting': 'Non-Res. Lighting',
+    'sector_industry': 'Industry', 'sector_public_admin': 'Public Admin.',
+    'sector_paper_products': 'Paper Products', 'sector_wholesale_retail': 'Wholesale/Retail',
+    'sector_wholesale_retail_alt': 'Wholesale/Retail', 'sector_apparel': 'Apparel',
+    'sector_apparel_alt': 'Apparel',
 }
 
 
@@ -572,8 +575,8 @@ def compute_dual_metrics(W0_true, Wk_true, W0_est, Wk_est) -> dict:
     met_comb = compute_all_metrics(B_comb.astype(float), W_comb_est)
     res.update({f"comb_{k}": v for k, v in met_comb.items()})
 
-    # Fix 20: top-level 指标使用 combined (W0+Wk) 而非仅 W0
-    # 同时保留 w0_ 前缀版本供需要时使用
+    # Fix 20: top-level metrics use combined (W0+Wk) rather than W0 alone
+    # The w0_-prefixed version is also kept for cases that still need it
     res.update({k: v for k, v in met_comb.items()})
     return res
 
@@ -700,8 +703,8 @@ def run_varlingam(X, d, K, seed=0):
 
 def _calibrate_scores(W: np.ndarray) -> np.ndarray:
     """
-    Row-wise score calibration: 每行除以该行的max绝对值.
-    使得不同变量的edge score可比, 提升AUROC.
+    Row-wise score calibration: divide each row by its own max absolute value.
+    Makes edge scores from different variables comparable, improving AUROC.
     """
     W_cal = np.abs(W).copy()
     for i in range(W_cal.shape[0]):
@@ -709,7 +712,7 @@ def _calibrate_scores(W: np.ndarray) -> np.ndarray:
         if row_max > 1e-10:
             W_cal[i] /= row_max
     np.fill_diagonal(W_cal, 0.0)
-    # 保留原始符号用于其他用途, 但返回calibrated absolute scores
+    # Preserve the original sign for downstream uses, but return calibrated absolute scores
     return W_cal * np.sign(W)
 
 
@@ -1135,7 +1138,7 @@ def run_ngc(X, d, K, hidden=32, n_layers=2, lam_group=0.01,
     set_seed(seed)
 
     if HAS_NGC:
-        # --- 使用官方代码库 (Neural-GC: cMLP(num_series, lag, hidden)) ---
+        # --- Use the official codebase (Neural-GC: cMLP(num_series, lag, hidden)) ---
         try:
             X_torch = torch.tensor(standardize(X), dtype=torch.float32).unsqueeze(0)  # (1, T, d)
             model = _NGC_cMLP(d, K, [hidden] * n_layers)
@@ -1214,7 +1217,7 @@ def run_rhino(X, d, K, seed=0, max_epochs=200):
             X_std = standardize(X)
             X_torch = torch.tensor(X_std, dtype=torch.float32)
 
-            # 尝试新版 causica API (>= 0.3)
+            # Try the new causica API (>= 0.3)
             try:
                 model = DECI(
                     "rhino_model", d,
@@ -1227,7 +1230,7 @@ def run_rhino(X, d, K, seed=0, max_epochs=200):
                     lambda_sparse=0.05,
                 )
             except TypeError:
-                # 旧版 API
+                # Old API
                 model = DECI.create(
                     "rhino", d, save_dir="/tmp/rhino_temp",
                     device=dev, lag=K,
@@ -1341,10 +1344,10 @@ def load_causaltime(data_dir, dataset_name="AQI", n_samples=1):
     Supports both .npy (official format) and .csv fallback.
 
     Official .npy format:
-      gen_data.npy: (N_samples, T, 2*d) — 取前 n_samples 个 sample 的前 d 列
-      graph.npy: (d, d) ground truth 邻接矩阵
+      gen_data.npy: (N_samples, T, 2*d) -- take the first d columns of the first n_samples samples
+      graph.npy: (d, d) ground-truth adjacency
 
-    目录名映射: "AQI" → "pm25", "Traffic" → "traffic", "Medical" → "medical"
+    Directory-name map: "AQI" -> "pm25", "Traffic" -> "traffic", "Medical" -> "medical"
 
     Parameters
     ----------
@@ -1354,12 +1357,12 @@ def load_causaltime(data_dir, dataset_name="AQI", n_samples=1):
 
     Returns (X_standardized, B_true) or (None, None) on failure.
     """
-    # CausalTime 官方目录名与常用名的映射
+    # Map between CausalTime's official directory names and the names used in the paper
     name_map = {"AQI": "pm25", "aqi": "pm25", "PM25": "pm25",
                 "Traffic": "traffic", "Medical": "medical"}
     mapped_name = name_map.get(dataset_name, dataset_name)
 
-    # 尝试多个可能的目录名
+    # Try several plausible directory names
     ds_dir = None
     for candidate in [dataset_name, mapped_name, dataset_name.lower()]:
         candidate_dir = os.path.join(data_dir, candidate)
@@ -1370,7 +1373,7 @@ def load_causaltime(data_dir, dataset_name="AQI", n_samples=1):
         warnings.warn(f"CausalTime dataset dir not found for '{dataset_name}' in {data_dir}")
         return None, None
 
-    # --- 优先尝试 .npy 格式 (官方) ---
+    # --- Prefer the official .npy format ---
     npy_data = os.path.join(ds_dir, "gen_data.npy")
     npy_graph = os.path.join(ds_dir, "graph.npy")
 
@@ -1407,7 +1410,7 @@ def load_causaltime(data_dir, dataset_name="AQI", n_samples=1):
         X = standardize(X)
         return X, B_true
 
-    # --- Fallback: CSV 格式 ---
+    # --- Fallback: CSV format ---
     data_path = os.path.join(ds_dir, "data.csv")
     graph_path = os.path.join(ds_dir, "graph.csv")
 
@@ -1495,8 +1498,9 @@ def validate_laplace_approximation(
     """
     Validate Laplace approximation of EB objective against numerical integration.
 
-    线性 SVAR 下条件后验是 Gaussian, 可 closed-form 计算真实边际似然.
-    与 Laplace 近似 (compute_eb_objective) 对比.
+    Under a linear SVAR the conditional posterior is Gaussian, so the true
+    marginal likelihood admits a closed form. Compare it with the Laplace
+    approximation (compute_eb_objective).
 
     Returns dict with:
       tau_grid, exact_values, laplace_values,
@@ -1511,7 +1515,7 @@ def validate_laplace_approximation(
     X_t = X_t.to(dev)
     X_lags = [x.to(dev) for x in X_lags]
 
-    # 1. 训练 PRCD-MAP 到收敛 → W*
+    # 1. Train PRCD-MAP to convergence -> W*
     model = PRCD_MAP_Model(
         num_vars=d, lag_k=K, P_prior=P_prior,
         lambda1=lambda1, lambda2=lambda2,
@@ -1524,24 +1528,24 @@ def validate_laplace_approximation(
         verbose=False,
     )
 
-    # 2. 固定 W*, sweep tau
+    # 2. Fix W* and sweep tau
     if tau_grid is None:
         tau_grid = np.linspace(0.05, 3.0, n_grid)
 
     T_eff = X_t.shape[0]
 
-    # 预计算数据相关量 (用于 closed-form marginal likelihood)
+    # Precompute data-dependent terms (for the closed-form marginal likelihood)
     X_t_np = X_t.detach().cpu().numpy()
     X_lags_np = [xl.detach().cpu().numpy() for xl in X_lags]
     W0_star = model.get_W0_adj().detach().cpu().numpy()
     Wk_star = [wk.detach().cpu().numpy() for wk in model.Wk]
 
-    # 残差: R = X_t - X_t @ W0 - sum X_lags[k] @ Wk[k]
+    # Residuals: R = X_t - X_t @ W0 - sum X_lags[k] @ Wk[k]
     pred = X_t_np @ W0_star
     for k_idx in range(K):
         pred = pred + X_lags_np[k_idx] @ Wk_star[k_idx]
     residuals = X_t_np - pred
-    sigma2_hat = np.mean(residuals ** 2)  # 残差方差估计
+    sigma2_hat = np.mean(residuals ** 2)  # residual variance estimate
 
     P_clamped = np.clip(P_prior, 1e-3, 1.0 - 1e-3)
     prior_logits = np.log(P_clamped) - np.log(1.0 - P_clamped)
@@ -1551,15 +1555,15 @@ def validate_laplace_approximation(
     exact_values = []
 
     for tau_val in tau_grid:
-        # --- Laplace 近似 (现有 compute_eb_objective) ---
+        # --- Laplace approximation (existing compute_eb_objective) ---
         tau_t = torch.full((model.n_tau_groups,), tau_val, dtype=torch.float32,
                            device=dev, requires_grad=False)
         with torch.no_grad():
             eb_val = model.compute_eb_objective(X_t, X_lags, tau_t)
         laplace_values.append(float(eb_val.cpu().item()))
 
-        # --- 精确边际似然 (closed-form for linear Gaussian SVAR) ---
-        # 对线性模型: log p(X|τ) ∝ -T/2 log(σ²) + log p(W*|τ)
+        # --- Exact marginal likelihood (closed-form for linear Gaussian SVAR) ---
+        # For the linear model: log p(X|tau) ~ -T/2 log(sigma^2) + log p(W*|tau)
         # Prior: p(W|τ) ∝ exp(-λ₂/2 * Ω(τ) * W² - λ₁ * coeff(τ) * |W|)
         # Ω(τ) = 1 - sigmoid(logit(P)*τ) + δ
         P_hat = 1.0 / (1.0 + np.exp(-prior_logits * tau_val))
@@ -1588,8 +1592,8 @@ def validate_laplace_approximation(
                     H_ij = data_hess_k[i] + lambda2 * Omega[i, j]
                     log_det += np.log(max(H_ij, 1e-10))
 
-        # 数值积分修正 (1D quadrature over τ-dependent terms)
-        # 对 agreement loss 做精确计算 (不依赖 Hessian 近似)
+        # Numerical-quadrature correction (1D quadrature over tau-dependent terms)
+        # Compute the agreement loss exactly (without the Hessian approximation)
         w_max = max(np.max(np.abs(W0_star)), 1e-6)
         W0_prob = np.clip(np.abs(W0_star) / w_max, 1e-6, 1.0 - 1e-6) * off_mask
         P_hat_safe = np.clip(P_hat, 1e-6, 1.0 - 1e-6)
@@ -1598,7 +1602,7 @@ def validate_laplace_approximation(
             * off_mask
         )
 
-        # τ 正则
+        # tau regularizer
         tau_reg = 0.5 * (tau_val - 0.5) ** 2 / (2.0 ** 2)
 
         exact_val = agreement + 0.5 * log_det + tau_reg

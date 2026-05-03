@@ -1,13 +1,14 @@
 """
-generate_cached_priors.py — 预生成 LLM 风格的因果先验矩阵 (无需 API).
+generate_cached_priors.py -- Pre-generate LLM-style causal prior matrices (no API needed).
 
-基于 Claude 的领域知识, 为 CausalTime (AQI/Traffic/Medical) 和电力数据集
-各生成 3 个独立先验矩阵, 缓存到 llm_prior_cache/ 供 exp4 直接使用.
+Using domain knowledge distilled from Claude, this script generates 3 independent
+prior matrices for each of CausalTime (AQI/Traffic/Medical) and the Electricity
+dataset, caches them under llm_prior_cache/, so that exp4 can load them directly.
 
-在服务器上运行一次即可 (无需GPU, 几秒完成):
-  cd /home/shanxh/PRCD/0415 && python generate_cached_priors.py
+Run once on the server (no GPU, takes a few seconds):
+  cd ./scripts && python generate_cached_priors.py
 
-生成结果:
+Output:
   llm_prior_cache/AQI_prior_style0.npy
   llm_prior_cache/AQI_prior_style1.npy
   llm_prior_cache/AQI_prior_style2.npy
@@ -35,56 +36,54 @@ ensure_dir = _orig.ensure_dir
 CACHE_DIR = "llm_prior_cache"
 
 # ====================================================================
-# 领域知识: 因果关系的专家评估
+# Domain-knowledge expert assessments of causal links
 # ====================================================================
 
 def _aqi_prior_style0(d):
     """
-    AQI/PM2.5 — 保守估计 (仅高置信度因果链).
+    AQI/PM2.5 -- conservative estimate (only high-confidence causal chains).
 
-    CausalTime PM25 变量顺序 (典型):
-    气象 → 污染物的因果方向为主.
+    Typical CausalTime PM25 variable order: meteorology -> pollutant is the dominant direction.
     """
-    P = np.full((d, d), 0.3)  # 默认: 弱不确定
+    P = np.full((d, d), 0.3)  # default: weakly uncertain
     np.fill_diagonal(P, 0.0)
 
     if d >= 6:
-        # 典型 PM25 数据集变量:
-        # 污染物之间的化学因果链
-        # SO2(2) → PM2.5(0) (二次颗粒物)
-        # NO2(3) → PM2.5(0) (二次气溶胶)
-        # NO2(3) → O3(5) (光化学反应)
-        # CO(4) → PM2.5(0) (共源指示)
-        # PM10(1) 包含 PM2.5(0)
+        # Typical PM25 dataset variables; known chemical causal chain among pollutants:
+        # SO2(2) -> PM2.5(0) (secondary particulates)
+        # NO2(3) -> PM2.5(0) (secondary aerosol)
+        # NO2(3) -> O3(5) (photochemical reaction)
+        # CO(4) -> PM2.5(0) (co-source indicator)
+        # PM10(1) contains PM2.5(0)
 
-        # 强因果: 化学/物理机制确认
+        # Strong causal: confirmed chemical/physical mechanism
         causal_strong = [
-            (2, 0), (3, 0), (4, 0),  # SO2,NO2,CO → PM2.5
-            (3, 5),                    # NO2 → O3
+            (2, 0), (3, 0), (4, 0),  # SO2,NO2,CO -> PM2.5
+            (3, 5),                    # NO2 -> O3
         ]
         for i, j in causal_strong:
             if i < d and j < d:
                 P[i, j] = 0.85
 
-        # 中等因果: 间接或部分
+        # Medium causal: indirect or partial
         causal_medium = [
-            (1, 0), (0, 1),  # PM10 ↔ PM2.5
-            (2, 1),           # SO2 → PM10
+            (1, 0), (0, 1),  # PM10 <-> PM2.5
+            (2, 1),           # SO2 -> PM10
         ]
         for i, j in causal_medium:
             if i < d and j < d:
                 P[i, j] = 0.65
 
     if d >= 10:
-        # 气象变量 (后半部分) → 污染物 (前半部分)
-        met_start = d // 2  # 气象变量起始
+        # Meteorology variables (second half) -> pollutants (first half)
+        met_start = d // 2  # meteorology start index
         for met_idx in range(met_start, d):
             for poll_idx in range(met_start):
-                P[met_idx, poll_idx] = 0.55  # 气象影响污染物
-                P[poll_idx, met_idx] = 0.15  # 污染物不太影响气象
+                P[met_idx, poll_idx] = 0.55  # meteorology affects pollutants
+                P[poll_idx, met_idx] = 0.15  # pollutants barely affect meteorology
 
-        # 风速 → 所有污染物 (强扩散效应)
-        wind_idx = min(d-1, met_start + 1)  # 假设第二个气象变量是风速
+        # Wind speed -> all pollutants (strong dispersion effect)
+        wind_idx = min(d-1, met_start + 1)  # assume the second meteorology variable is wind speed
         for poll_idx in range(met_start):
             P[wind_idx, poll_idx] = 0.80
 
@@ -92,25 +91,25 @@ def _aqi_prior_style0(d):
 
 
 def _aqi_prior_style1(d):
-    """AQI — 激进估计 (更多因果连接, 偏高先验)."""
+    """AQI -- aggressive estimate (more causal links, biased high)."""
     P = np.full((d, d), 0.4)
     np.fill_diagonal(P, 0.0)
 
-    # 所有污染物之间有中等互因果
+    # Medium mutual causal links among all pollutants
     n_poll = min(6, d)
     for i in range(n_poll):
         for j in range(n_poll):
             if i != j:
                 P[i, j] = 0.60
 
-    # 源头污染物 → 二次污染物 更强
+    # Source pollutants -> secondary pollutants are stronger
     if d >= 6:
         for src in [2, 3, 4]:  # SO2, NO2, CO
             for tgt in [0, 1]:  # PM2.5, PM10
                 if src < d and tgt < d:
                     P[src, tgt] = 0.88
 
-    # 气象 → 所有污染物
+    # Meteorology -> all pollutants
     if d >= 8:
         met_start = max(6, d // 2)
         for m in range(met_start, d):
@@ -122,33 +121,34 @@ def _aqi_prior_style1(d):
 
 
 def _aqi_prior_style2(d):
-    """AQI — 稀疏估计 (仅最确定的因果链)."""
-    P = np.full((d, d), 0.25)  # 保守基线
+    """AQI -- sparse estimate (only the most certain causal chains)."""
+    P = np.full((d, d), 0.25)  # conservative baseline
     np.fill_diagonal(P, 0.0)
 
-    # 仅最强的物理/化学因果
+    # Only the strongest physical/chemical causes
     if d >= 6:
         strong_links = [(2, 0), (3, 0), (3, 5), (4, 0)]
         for i, j in strong_links:
             if i < d and j < d:
                 P[i, j] = 0.90
-                P[j, i] = 0.10  # 反向很低
+                P[j, i] = 0.10  # reverse very low
 
-    # 气象中仅风速和温度
+    # Of meteorology, keep only wind speed and temperature
     if d >= 8:
         for poll in range(min(6, d)):
             if d > 6:
-                P[6, poll] = 0.75  # 温度
+                P[6, poll] = 0.75  # temperature
             if d > 7:
-                P[7, poll] = 0.80  # 风速 (扩散)
+                P[7, poll] = 0.80  # wind speed (dispersion)
 
     return np.clip(P, 0.01, 0.99)
 
 
 def _traffic_prior_style0(d):
     """
-    Traffic — 空间传播模型.
-    相邻传感器之间有强因果 (交通流传播), 间隔越远越弱.
+    Traffic -- spatial-propagation model.
+    Adjacent sensors have a strong causal link (traffic flow propagates);
+    further apart, weaker.
     """
     P = np.full((d, d), 0.20)
     np.fill_diagonal(P, 0.0)
@@ -159,12 +159,12 @@ def _traffic_prior_style0(d):
                 continue
             dist = abs(i - j)
             if dist == 1:
-                P[i, j] = 0.85  # 直接相邻
+                P[i, j] = 0.85  # directly adjacent
             elif dist == 2:
-                P[i, j] = 0.55  # 间隔一个
+                P[i, j] = 0.55  # one apart
             elif dist == 3:
-                P[i, j] = 0.35  # 间隔两个
-            # 环形拓扑: 首尾也相邻
+                P[i, j] = 0.35  # two apart
+            # Ring topology: ends are also adjacent
             wrap_dist = d - dist
             if wrap_dist == 1:
                 P[i, j] = 0.80
@@ -175,7 +175,7 @@ def _traffic_prior_style0(d):
 
 
 def _traffic_prior_style1(d):
-    """Traffic — 上下游非对称模型 (交通流有方向性)."""
+    """Traffic -- upstream/downstream asymmetric model (traffic flow has direction)."""
     P = np.full((d, d), 0.20)
     np.fill_diagonal(P, 0.0)
 
@@ -183,16 +183,16 @@ def _traffic_prior_style1(d):
         for j in range(d):
             if i == j:
                 continue
-            # 上游 → 下游 (i < j) 比下游 → 上游更强
+            # Upstream -> downstream (i < j) is stronger than downstream -> upstream
             dist = abs(i - j)
-            if i < j:  # 上游 → 下游
+            if i < j:  # upstream -> downstream
                 if dist == 1:
                     P[i, j] = 0.88
                 elif dist == 2:
                     P[i, j] = 0.60
                 elif dist == 3:
                     P[i, j] = 0.40
-            else:  # 下游 → 上游 (拥堵回传, 较弱)
+            else:  # downstream -> upstream (congestion backflow, weaker)
                 if dist == 1:
                     P[i, j] = 0.65
                 elif dist == 2:
@@ -202,7 +202,7 @@ def _traffic_prior_style1(d):
 
 
 def _traffic_prior_style2(d):
-    """Traffic — 聚类模型 (传感器分组, 组内强组间弱)."""
+    """Traffic -- cluster model (sensors grouped; intra-cluster strong, inter-cluster weak)."""
     P = np.full((d, d), 0.15)
     np.fill_diagonal(P, 0.0)
 
@@ -215,11 +215,11 @@ def _traffic_prior_style2(d):
                 continue
             ci, cj = i // cluster_size, j // cluster_size
             if ci == cj:
-                P[i, j] = 0.75  # 同组
+                P[i, j] = 0.75  # same cluster
             elif abs(ci - cj) == 1:
-                P[i, j] = 0.45  # 相邻组
+                P[i, j] = 0.45  # adjacent cluster
 
-    # 叠加距离衰减
+    # Add a distance-decay term on top
     for i in range(d):
         for j in range(d):
             if i != j and abs(i - j) == 1:
@@ -230,26 +230,26 @@ def _traffic_prior_style2(d):
 
 def _medical_prior_style0(d):
     """
-    Medical/ICU — 生理因果机制.
+    Medical/ICU -- physiological causal mechanisms.
 
-    典型变量: heart_rate(0), BP_sys(1), BP_dia(2), resp_rate(3), SpO2(4), temp(5)
+    Typical variables: heart_rate(0), BP_sys(1), BP_dia(2), resp_rate(3), SpO2(4), temp(5)
     """
     P = np.full((d, d), 0.25)
     np.fill_diagonal(P, 0.0)
 
-    # 已知生理机制
+    # Known physiological mechanisms
     causal_links = {
         # (src, tgt): probability
-        (1, 0): 0.80,  # BP_sys → heart_rate (压力反射)
-        (0, 1): 0.70,  # heart_rate → BP_sys (心输出量)
-        (1, 2): 0.90,  # BP_sys → BP_dia (血压系统性)
-        (2, 1): 0.60,  # BP_dia → BP_sys (较弱反向)
-        (3, 4): 0.85,  # resp_rate → SpO2 (通气 → 氧合)
-        (4, 3): 0.50,  # SpO2 → resp_rate (低氧驱动呼吸)
-        (4, 0): 0.65,  # SpO2 → heart_rate (低氧代偿)
-        (5, 0): 0.75,  # temp → heart_rate (发热 → 心率↑)
-        (5, 3): 0.60,  # temp → resp_rate (发热 → 呼吸↑)
-        (0, 4): 0.40,  # heart_rate → SpO2 (弱: 灌注)
+        (1, 0): 0.80,  # BP_sys -> heart_rate (baroreflex)
+        (0, 1): 0.70,  # heart_rate -> BP_sys (cardiac output)
+        (1, 2): 0.90,  # BP_sys -> BP_dia (systemic blood pressure)
+        (2, 1): 0.60,  # BP_dia -> BP_sys (weaker reverse)
+        (3, 4): 0.85,  # resp_rate -> SpO2 (ventilation -> oxygenation)
+        (4, 3): 0.50,  # SpO2 -> resp_rate (hypoxic drive)
+        (4, 0): 0.65,  # SpO2 -> heart_rate (hypoxic compensation)
+        (5, 0): 0.75,  # temp -> heart_rate (fever -> HR up)
+        (5, 3): 0.60,  # temp -> resp_rate (fever -> resp up)
+        (0, 4): 0.40,  # heart_rate -> SpO2 (weak: perfusion)
     }
 
     for (i, j), prob in causal_links.items():
@@ -260,17 +260,17 @@ def _medical_prior_style0(d):
 
 
 def _medical_prior_style1(d):
-    """Medical — 激进模型 (更多交互)."""
+    """Medical -- aggressive model (more interactions)."""
     P = np.full((d, d), 0.35)
     np.fill_diagonal(P, 0.0)
 
-    # 所有生命体征互相影响
+    # All vital signs interact with each other
     for i in range(min(d, 6)):
         for j in range(min(d, 6)):
             if i != j:
                 P[i, j] = 0.55
 
-    # 强化已知因果
+    # Strengthen known causes
     strong = {
         (1, 2): 0.92, (1, 0): 0.82, (0, 1): 0.75,
         (3, 4): 0.88, (5, 0): 0.78, (5, 3): 0.68,
@@ -284,52 +284,53 @@ def _medical_prior_style1(d):
 
 
 def _medical_prior_style2(d):
-    """Medical — 保守/稀疏模型."""
+    """Medical -- conservative/sparse model."""
     P = np.full((d, d), 0.20)
     np.fill_diagonal(P, 0.0)
 
-    # 仅最确定的因果
+    # Only the most certain causes
     confirmed = {
-        (1, 2): 0.92,  # BP_sys → BP_dia
-        (3, 4): 0.88,  # resp → SpO2
-        (5, 0): 0.80,  # temp → HR
-        (1, 0): 0.78,  # BP → HR
+        (1, 2): 0.92,  # BP_sys -> BP_dia
+        (3, 4): 0.88,  # resp -> SpO2
+        (5, 0): 0.80,  # temp -> HR
+        (1, 0): 0.78,  # BP -> HR
     }
     for (i, j), prob in confirmed.items():
         if i < d and j < d:
             P[i, j] = prob
-            P[j, i] = max(P[j, i], 0.15)  # 反向很低
+            P[j, i] = max(P[j, i], 0.15)  # reverse very low
 
     return np.clip(P, 0.01, 0.99)
 
 
 def _electricity_prior_style0(d):
     """
-    电力 — 产业链因果.
-    重工业 → 总量; 上游产业 → 下游产业; 气候 → 居民/农业.
+    Electricity -- value-chain causal model.
+    Heavy industry -> total demand; upstream -> downstream sectors;
+    weather -> residential/agriculture.
     """
     P = np.full((d, d), 0.30)
     np.fill_diagonal(P, 0.0)
 
-    # 重工业带动其他
+    # Heavy industry drives the rest
     if d >= 3:
         for j in range(1, d):
-            P[0, j] = 0.65  # 大工业 → 其他
+            P[0, j] = 0.65  # large industry -> others
 
-    # 产业间因果
+    # Inter-sector causal links
     pairs = {
-        (0, 5): 0.80,  # 大工业 → 黑色金属
-        (5, 6): 0.70,  # 黑色金属 → 化工
-        (0, 1): 0.60,  # 大工业 → 非普工业
-        (2, 3): 0.55,  # 居民 → 商业 (消费驱动)
-        (3, 2): 0.45,  # 商业 → 居民 (较弱)
+        (0, 5): 0.80,  # large industry -> ferrous metal
+        (5, 6): 0.70,  # ferrous metal -> chemicals
+        (0, 1): 0.60,  # large industry -> non-standard industry
+        (2, 3): 0.55,  # residential -> commercial (consumption-driven)
+        (3, 2): 0.45,  # commercial -> residential (weaker)
     }
     for (i, j), prob in pairs.items():
         if i < d and j < d:
             P[i, j] = prob
 
-    # 同类产业协同
-    industrial = [0, 1, 5, 6, 7]  # 工业相关
+    # Same-class industries co-vary
+    industrial = [0, 1, 5, 6, 7]  # industrial-related
     for i in industrial:
         for j in industrial:
             if i != j and i < d and j < d:
@@ -339,45 +340,45 @@ def _electricity_prior_style0(d):
 
 
 def _electricity_prior_style1(d):
-    """电力 — 经济结构模型 (上下游产业链)."""
+    """Electricity -- economic-structure model (upstream/downstream value chain)."""
     P = np.full((d, d), 0.35)
     np.fill_diagonal(P, 0.0)
 
-    # 能源密集型 → 其他
-    energy_intensive = [0, 5, 6]  # 大工业, 黑色金属, 化工
+    # Energy-intensive sectors -> others
+    energy_intensive = [0, 5, 6]  # large industry, ferrous metal, chemicals
     for src in energy_intensive:
         for j in range(d):
             if src < d and j < d and src != j:
                 P[src, j] = max(P[src, j], 0.60)
 
-    # 终端消费
+    # End-consumption
     if d >= 4:
-        P[2, 3] = 0.70  # 居民 → 商业
+        P[2, 3] = 0.70  # residential -> commercial
         P[3, 2] = 0.50
     if d >= 5:
-        P[4, 2] = 0.55  # 农业 → 居民 (季节性共振)
+        P[4, 2] = 0.55  # agriculture -> residential (seasonal coupling)
 
     return np.clip(P, 0.01, 0.99)
 
 
 def _electricity_prior_style2(d):
-    """电力 — 稀疏保守模型."""
+    """Electricity -- sparse conservative model."""
     P = np.full((d, d), 0.20)
     np.fill_diagonal(P, 0.0)
 
-    # 仅最确定的
+    # Only the most certain
     if d >= 6:
-        P[0, 5] = 0.85  # 大工业 → 冶金
-        P[0, 1] = 0.75  # 大工业 → 非普
-        P[5, 6] = 0.72  # 冶金 → 化工
+        P[0, 5] = 0.85  # large industry -> metallurgy
+        P[0, 1] = 0.75  # large industry -> non-standard
+        P[5, 6] = 0.72  # metallurgy -> chemicals
     if d >= 4:
-        P[2, 3] = 0.65  # 居民 → 商业
+        P[2, 3] = 0.65  # residential -> commercial
 
     return np.clip(P, 0.01, 0.99)
 
 
 # ====================================================================
-# 主流程
+# Main routine
 # ====================================================================
 
 GENERATORS = {
@@ -390,20 +391,25 @@ GENERATORS = {
 
 def _enrich_prior(P, d, seed=0):
     """
-    对先验矩阵做结构化增强: 将默认常数区域替换为有局部结构的值.
+    Structurally enrich a prior matrix: replace default constant regions with
+    locally structured values.
 
-    策略:
-    1. 块结构: 变量按 d//4 分块, 同块内 +0.15 提升 (模拟子系统内因果)
-    2. 距离衰减: 索引距离近的变量对 +0.10 (模拟时空邻近性)
-    3. 随机扰动: ±0.05 打破对称 (模拟不同 prompt 的随机性)
+    Strategy:
+    1. Block structure: variables grouped into d//4 blocks; intra-block edges
+       get +0.15 (simulates intra-subsystem causality)
+    2. Distance decay: index-close variable pairs get +0.10 (simulates spatio-
+       temporal proximity)
+    3. Random perturbation: +/-0.05 to break symmetry (simulates randomness
+       between prompts)
 
-    仅作用于"未被领域知识覆盖"的区域 (值接近默认基线的位置).
+    Only acts on regions "not covered by domain knowledge" (entries close to
+    the default baseline).
     """
     rng = np.random.default_rng(seed)
     P_out = P.copy()
     mask = ~np.eye(d, dtype=bool)
 
-    # 检测默认基线 (取非对角元素的众数区间)
+    # Detect the default baseline (use the median of off-diagonal entries)
     vals = P[mask]
     median_val = np.median(vals)
 
@@ -411,24 +417,24 @@ def _enrich_prior(P, d, seed=0):
         for j in range(d):
             if i == j:
                 continue
-            # 仅增强"接近默认值"的区域
+            # Only enrich entries "close to the default"
             if abs(P[i, j] - median_val) > 0.10:
-                continue  # 已有领域知识, 不动
+                continue  # already shaped by domain knowledge -- leave alone
 
             bonus = 0.0
-            # 块结构
+            # Block structure
             block_size = max(2, d // 4)
             if i // block_size == j // block_size:
                 bonus += 0.15
 
-            # 距离衰减
+            # Distance decay
             dist = abs(i - j)
             if dist <= 2:
                 bonus += 0.10
             elif dist <= 4:
                 bonus += 0.05
 
-            # 随机扰动
+            # Random perturbation
             bonus += rng.uniform(-0.05, 0.05)
 
             P_out[i, j] = P[i, j] + bonus
@@ -441,7 +447,7 @@ def main():
     ensure_dir(CACHE_DIR)
 
     # --- CausalTime datasets ---
-    causaltime_dir = "/home/shanxh/PRCD/data/causaltime"
+    causaltime_dir = "./data/causaltime"
     for ds_name in ["AQI", "Traffic", "Medical"]:
         print(f"\n>>> {ds_name}")
         X, B_true = load_causaltime(causaltime_dir, ds_name, n_samples=10)
@@ -469,7 +475,7 @@ def main():
             print(f"  style {style}: saved {out_path}  "
                   f"(mean={P[mask].mean():.3f}, nnz>{0.5}={int((P[mask]>0.5).sum())})")
 
-            # 与真实图比较 (如果有)
+            # Compare with the ground-truth graph if available
             if B_true is not None:
                 from sklearn.metrics import roc_auc_score
                 try:
@@ -480,8 +486,8 @@ def main():
 
     # --- Electricity ---
     print(f"\n>>> Electricity")
-    elec_xlsx = "/home/shanxh/PRCD/0227test.xlsx"
-    elec_prior = "/home/shanxh/PRCD/Auto_Generated_Prior.csv"
+    elec_xlsx = "./data/electricity.xlsx"
+    elec_prior = "./data/electricity_prior.csv"
     try:
         df_diff, P_existing, split, col_names = load_electricity(elec_xlsx, elec_prior)
         d = len(col_names)

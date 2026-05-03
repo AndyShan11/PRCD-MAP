@@ -1,10 +1,10 @@
 """
 model_prcd_map_nam_trust.py — PRCD-MAP NAM with Structure-Aware Trust Propagation.
 
-线性 SVAR → NAM (Neural Additive Model): 每条边 (i→j) 用 MLP f_{ij}(x_i).
-同时集成 structure-aware trust propagation 替代 per-group τ.
+Linear SVAR -> NAM (Neural Additive Model): each edge (i->j) uses an MLP f_{ij}(x_i).
+Also replaces per-group tau with structure-aware trust propagation.
 
-适用范围: d ≤ 30.
+Recommended range: d <= 30.
 """
 
 import math
@@ -19,7 +19,7 @@ from trust_propagation import TrustPropagationModule, TrustPropagationLite
 
 
 class EdgeMLP(nn.Module):
-    """单边非线性函数 f_{ij}: R → R."""
+    """Per-edge nonlinear function f_{ij}: R -> R."""
 
     def __init__(self, hidden=16, n_layers=2):
         super().__init__()
@@ -116,7 +116,7 @@ class PRCD_MAP_NAM_Trust(nn.Module):
         self.n_tau_groups = actual_n_groups
         self.register_buffer("group_indices", group_indices)
 
-        # Trust Propagation — 一律用 Lite (NAM 本身已经很重, d*(d-1) 个 MLP)
+        # Trust Propagation -- always use Lite (NAM is already heavy with d*(d-1) MLPs)
         self.trust_module = TrustPropagationLite(
             tau_min=tau_min, tau_max=tau_max, hidden=trust_feat_dim
         )

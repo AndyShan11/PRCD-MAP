@@ -53,11 +53,11 @@ class Cfg:
     do_varlingam:     bool = True
     bench:            str = "all"
     # Paths
-    causaltime_dir:   str = "/home/shanxh/PRCD/data/causaltime"
+    causaltime_dir:   str = "./data/causaltime"
     causaltime_datasets: List[str] = field(default_factory=lambda: ["AQI", "Traffic", "Medical"])
     causaltime_n_samples: int = 10
-    electricity_xlsx: str = "/home/shanxh/PRCD/0227test.xlsx"
-    electricity_prior: str = "/home/shanxh/PRCD/Auto_Generated_Prior.csv"
+    electricity_xlsx: str = "./data/electricity.xlsx"
+    electricity_prior: str = "./data/electricity_prior.csv"
     output_dir:       str = "exp2_trust_results"
 
 
@@ -200,7 +200,7 @@ def run_nonlinear_benchmark(cfg):
                         do_baselines=cfg.do_baselines,
                         do_trust=cfg.do_trust,
                         do_per_group=cfg.do_per_group,
-                        do_nam_trust=(d <= 10),  # NAM仅d=10, d=20太慢
+                        do_nam_trust=(d <= 10),  # NAM only at d=10; d=20 is too slow
                         do_dynotears=cfg.do_dynotears,
                         do_pcmci=cfg.do_pcmci,
                         do_varlingam=cfg.do_varlingam,
