@@ -34,24 +34,37 @@ PRCD-MAP/
 │   ├── utils.py                          # Data gen, baselines, metrics
 │   └── utils_trust.py                    # Trust-propagation wrappers
 │
-├── experiments/                      # 12 experiment scripts
+├── experiments/                      # 18 main experiments + 10 verification scripts
 │   ├── exp1_synthetic_benchmark.py           # Synthetic SVAR (Table 1)
 │   ├── exp2_real_benchmarks_original.py      # CausalTime + electricity
-│   ├── exp3_ablation.py                      # Ablation (Table 3)
+│   ├── exp3_ablation.py                      # Ablation (Table 4)
 │   ├── exp4_scalability.py                   # Scalability
 │   ├── exp5_cross_sectional.py               # Cross-sectional SEM (App K)
 │   ├── exp6_trust_validation.py              # Trust vs per-group
-│   ├── exp7_real_benchmarks_trust.py         # Trust on real data
-│   ├── exp8_scalability_trust.py             # Trust scalability
+│   ├── exp7_real_benchmarks_trust.py         # Trust on real data (Table 2)
+│   ├── exp8_scalability_trust.py             # Trust scalability (App G)
 │   ├── exp9_llm_prior_pipeline.py            # LLM prior end-to-end (App B)
-│   ├── exp10_community_mixing.py             # Designed validation (Table 7)
+│   ├── exp10_community_mixing.py             # Designed validation (Table 3/7)
 │   ├── exp11_significance_test.py            # 10-seed paired test (App L)
-│   └── exp12_theory_verification.py          # Numerical theorem check
+│   ├── exp12_theory_verification.py          # Numerical theorem check
+│   ├── exp13_table1_t50_10seeds.py           # Table 1 row T=50, 10-seed CI tightening
+│   ├── exp14_bayesdag_baseline.py            # BayesDAG (Annadani et al., NeurIPS 2023) baseline
+│   ├── exp15_table1_extended_seeds.py        # Table 1 T={100,200,500} 10-seed extension
+│   ├── exp16_lambda_sensitivity.py           # λ1 warmup-factor sensitivity (W7)
+│   ├── exp17_contemporaneous_dominant.py     # Contemporaneous-dominant ablation (W8)
+│   ├── exp18_llm_variance_decomp.py          # LLM × prompt-style variance decomposition (Q10)
+│   ├── _run_priormode.py                     # Wrapper: prior-mode override (systematic / adversarial)
+│   ├── gen_correlation_priors.py             # Statistical priors for CausalTime (no LLM domain knowledge)
+│   ├── verify_*.py                           # 10 reviewer-response verification scripts (see below)
+│   └── llm_prior_cache/                      # Cached LLM-derived prior matrices (.npy + JSON manifests)
 │
 ├── data_loaders/                     # Data prep + baseline runners
 │   ├── generate_llm_priors.py
 │   ├── baseline_dycast.py
 │   └── baseline_rhino.py
+│
+├── tools/
+│   └── merge_priors.py               # Merge multi-LLM prior caches into a single style index
 │
 ├── scripts/run_all.sh                # One-click reproduction
 ├── results/                          # Pre-computed result CSVs (see results/README.md)
@@ -134,6 +147,29 @@ python ../data_loaders/generate_llm_priors.py
 # 2. Run end-to-end pipeline
 python exp9_llm_prior_pipeline.py --dataset AQI --seeds 0 1 2
 ```
+
+### Reviewer-response strengthening (exp13–18)
+```bash
+python exp13_table1_t50_10seeds.py --seeds 0 1 2 3 4 5 6 7 8 9   # Table 1 T=50 with 10 seeds
+python exp15_table1_extended_seeds.py                            # Table 1 T={100,200,500} with 10 seeds
+python exp14_bayesdag_baseline.py --bench medical --seeds 10     # BayesDAG side-by-side
+python exp16_lambda_sensitivity.py                               # λ1 warmup-factor sensitivity (W7)
+python exp17_contemporaneous_dominant.py                         # Contemporaneous-dominant ablation (W8)
+python exp18_llm_variance_decomp.py                              # LLM × prompt-style variance decomposition (Q10)
+```
+
+### Theory and empirical verifications (`verify_*.py`)
+Self-contained scripts that directly check claims flagged in review:
+- `verify_realised_constants.py` — measure `c_min/c_max`, `λ_min(Σ̂)`, realised `C_1`
+- `verify_bilevel_stabilization.py` — active-set Hamming distance across ALM iterations (Asm 2)
+- `verify_cor4_proxy_grid.py` — `Δ_proxy` realised across the acc grid (Cor 4 / T-3)
+- `verify_d_sweep_full.py` — full d-sweep with ALM early-termination disabled (W6)
+- `verify_w3_weak_data.py` — EB behavior in T≪d regime (W3)
+- `verify_w4_lag_resolved.py` — lag-resolved prior empirical check (W4)
+- `verify_w6a_d100.py` — d=100 with `tol=0` (W6a)
+- `verify_e4_m2_causaltime.py` — M2 ablation directly on CausalTime (E-4)
+- `verify_e5_noprior_canonical.py` — unified "no prior" baseline across Tables 5/9/12/15 (E-5)
+- `verify_method3_threshold_labels.py` — alternative threshold-based EB soft labels
 
 ## Data
 
